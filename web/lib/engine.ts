@@ -50,21 +50,27 @@ const isOn = (host: string, domains: string[]) => domains.some((d) => host === d
 // "micr0soft-careers.co" -> "microsoftcareers.co": catches digit swaps and hyphen tricks.
 const unswap = (s: string) => s.replace(/0/g, "o").replace(/1/g, "l").replace(/3/g, "e").replace(/5/g, "s").replace(/-/g, "");
 
-function clauses(text: string): string[] {
-  return text.split(/[.!?\n,;]+|\bbut\b/i).map((s) => s.trim()).filter(Boolean);
+function sentences(text: string): string[] {
+  return text.split(/[.!?\n]+/).map((s) => s.trim()).filter(Boolean);
 }
 
-// Negation only counts directly before the verb ("never share") or just before the object ("no registration fee"),
-// so "Don't worry, just share your OTP" or "don't delay sharing the OTP" still flags.
+// Fail-safe negation: a sentence is cleared only when EVERY verb is directly negated ("never share")
+// or EVERY object is directly negated ("no registration fee"). One un-negated pair anywhere = flag.
+// So "Don't worry, just share your OTP" and "no fee, but transfer Rs 500" still flag.
 const VERB_NEGATED = /\b(never|not|don'?t|do not|won'?t|no need to)\s+$/i;
-const OBJECT_NEGATED = /\b(no|zero|without)\s+(\w+\s+)?$/i;
+const OBJECT_NEGATED = /\b(no|zero)\s+(registration\s+|joining\s+|processing\s+|training\s+|application\s+|security\s+|hidden\s+|extra\s+)?$/i;
 
-function asks(text: string, what: RegExp, verb: RegExp): boolean {
-  return clauses(text).some((c) => {
-    const w = c.match(what);
-    const v = c.match(verb);
-    if (!w || !v) return false;
-    return !VERB_NEGATED.test(c.slice(0, v.index)) && !OBJECT_NEGATED.test(c.slice(0, w.index));
+const all = (s: string, re: RegExp) => [...s.matchAll(new RegExp(re.source, "gi"))];
+const negated = (s: string, m: RegExpMatchArray, neg: RegExp) => neg.test(s.slice(0, m.index));
+
+// verb omitted = the object pattern itself is the request (e.g. "pay Rs 500").
+function asks(text: string, what: RegExp, verb?: RegExp): boolean {
+  return sentences(text).some((s) => {
+    const objs = all(s, what);
+    if (!objs.length) return false;
+    if (!verb) return objs.some((m) => !negated(s, m, VERB_NEGATED) && !negated(s, m, OBJECT_NEGATED));
+    const verbs = all(s, verb);
+    return verbs.some((m) => !negated(s, m, VERB_NEGATED)) && objs.some((m) => !negated(s, m, OBJECT_NEGATED));
   });
 }
 
@@ -80,7 +86,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   if (asks(text, /\b(otp|one[- ]time password|verification code|password|passcode|(upi|atm|card) pin)\b/i, shareVerb))
     add("ASKS_SECRET", "high", "It asks you to share an OTP or password. No real recruiter ever needs this.");
   // Matches money *you* pay (fee/deposit, "pay ₹500"), not salary text like "pay of ₹20,000".
-  if (asks(text, /\b(fee|fees|deposit|charges)\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i, /./))
+  if (asks(text, /\b(fee|fees|deposit|charges)\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i))
     add("ASKS_FEE", "high", "It asks you to pay money. Real companies don't charge you to get hired.");
   if (asks(text, /\b(aadhaa?r|pan\b|pan card|bank account|account number|ifsc|upi|cvv|card number|debit card)\b/i, shareVerb))
     add("ASKS_DOCUMENTS", "high", "It asks for ID or bank details over mail before any formal process.");

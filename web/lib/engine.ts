@@ -23,7 +23,6 @@ const SHORTENERS = ["bit.ly", "tinyurl.com", "t.co", "goo.gl", "cutt.ly", "rb.gy
 const FORM_HOSTS = ["forms.gle", "docs.google.com", "forms.office.com", "typeform.com", "jotform.com", "form.jotform.com"];
 
 const RANK: Record<Level, number> = { low: 0, medium: 1, high: 2 };
-const NEGATION = /\b(never|not|don'?t|do not|won'?t|no one|nobody)\b/i;
 const JOBBY = /\b(offer|internship|intern|placement|hiring|recruit\w*|job|selected|shortlisted|interview|stipend|salary|ctc|hr)\b/i;
 
 const NEXT_STEP: Record<string, string> = {
@@ -51,13 +50,22 @@ const isOn = (host: string, domains: string[]) => domains.some((d) => host === d
 // "micr0soft-careers.co" -> "microsoftcareers.co": catches digit swaps and hyphen tricks.
 const unswap = (s: string) => s.replace(/0/g, "o").replace(/1/g, "l").replace(/3/g, "e").replace(/5/g, "s").replace(/-/g, "");
 
-function sentences(text: string): string[] {
-  return text.split(/[.!?\n]+/).map((s) => s.trim()).filter(Boolean);
+function clauses(text: string): string[] {
+  return text.split(/[.!?\n,;]+|\bbut\b/i).map((s) => s.trim()).filter(Boolean);
 }
 
-// True when some non-negated sentence matches both patterns ("share your OTP", not "never share your OTP").
+// Negation only counts directly before the verb ("never share") or just before the object ("no registration fee"),
+// so "Don't worry, just share your OTP" or "don't delay sharing the OTP" still flags.
+const VERB_NEGATED = /\b(never|not|don'?t|do not|won'?t|no need to)\s+$/i;
+const OBJECT_NEGATED = /\b(no|zero|without)\s+(\w+\s+)?$/i;
+
 function asks(text: string, what: RegExp, verb: RegExp): boolean {
-  return sentences(text).some((s) => what.test(s) && verb.test(s) && !NEGATION.test(s));
+  return clauses(text).some((c) => {
+    const w = c.match(what);
+    const v = c.match(verb);
+    if (!w || !v) return false;
+    return !VERB_NEGATED.test(c.slice(0, v.index)) && !OBJECT_NEGATED.test(c.slice(0, w.index));
+  });
 }
 
 export function checkRules(text: string, sender = "", links: string[] = [], blockedDomains: string[] = []): CheckResult {
@@ -67,7 +75,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   const jobby = JOBBY.test(text);
 
   // --- what the mail asks you to do ---
-  const shareVerb = /\b(share|send|reply|provide|tell|forward|enter|submit|give|mention|fill)\b/i;
+  const shareVerb = /\b(shar(e|es|ed|ing)|send(s|ing)?|repl(y|ies|ying)|provid(e|ing)|tell|forward(ing)?|enter(ing)?|submit(ting)?|give|giving|mention|fill(ing)?)\b/i;
   // "pin" alone would hit "PIN code" in addresses, so only UPI/ATM/card PINs count.
   if (asks(text, /\b(otp|one[- ]time password|verification code|password|passcode|(upi|atm|card) pin)\b/i, shareVerb))
     add("ASKS_SECRET", "high", "It asks you to share an OTP or password. No real recruiter ever needs this.");

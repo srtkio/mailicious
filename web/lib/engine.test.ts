@@ -18,6 +18,11 @@ const cases: { name: string; text: string; sender?: string; blocked?: string[]; 
   { name: "selected without interview", text: "You have been selected for a Wipro role. No interview needed.", level: "medium", code: "TOO_GOOD" },
   { name: "urgency alone is not high", text: "Reminder: the Deloitte application deadline is today only. Apply on the careers portal.", sender: "careers@deloitte.com", level: "low", code: "URGENCY" },
   { name: "reported sender", text: "Interview invite attached.", sender: "hr@fasthire.example", blocked: ["fasthire.example"], level: "high", code: "BLOCKED_SENDER" },
+  { name: "negation bypass: don't worry, share OTP", text: "Don't worry, just share the OTP you received with our HR.", level: "high", code: "ASKS_SECRET" },
+  { name: "negation bypass: don't delay sharing", text: "Do not delay sharing the OTP with us.", level: "high", code: "ASKS_SECRET" },
+  { name: "negation bypass: but clause", text: "We never charge students but please pay Rs 500 to confirm your slot.", level: "high", code: "ASKS_FEE" },
+  { name: "no registration fee is fine", text: "Interview next week. There is no registration fee. Apply on the careers portal.", sender: "jobs@wipro.com", level: "low" },
+  { name: "do not pay is fine", text: "Interview next week. Do not pay anyone claiming to be us. Apply on the careers portal.", sender: "jobs@tcs.com", level: "low" },
   { name: "whatsapp move", text: "For your offer, message our HR on WhatsApp at the number below.", level: "medium", code: "MOVE_TO_CHAT" },
 ];
 

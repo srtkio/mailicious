@@ -72,6 +72,10 @@ describe("deepRules", () => {
     expect(deepRules({ attachments: ["login.html"] })[0].level).toBe("medium");
     expect(deepRules({ attachments: ["offer.pdf"] })).toEqual([]);
   });
+  it("keeps the most severe flag when a code appears twice", () => {
+    const r = checkRules("Hello.", "", [], [], deepRules({ attachments: ["cv.html", "run.exe"] }));
+    expect(r.level).toBe("high");
+  });
   it("names the attack on the result", () => {
     expect(checkRules("Pay the registration fee of Rs 500.").attack).toBe("Advance-fee scam");
     expect(checkRules("Hello there.").attack).toBeNull();

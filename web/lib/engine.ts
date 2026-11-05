@@ -45,6 +45,13 @@ const NEXT_STEP: Record<string, string> = {
 const DEFAULT_NEXT = "Don't act on this mail yet. Verify it with the placement cell or the company's official careers page.";
 const LOW_NEXT = "No common warning signs, but only apply through the company's official careers site or the placement portal.";
 
+const SECOND_LEVEL = /^(co|org|net|ac|edu|gov|gen|firm|res)$/;
+// shortcut: handles Indian-style second-level domains, not the full public suffix list.
+export function registrable(host: string): string {
+  const parts = host.split(".");
+  return parts.slice(parts.length > 2 && parts.at(-1)!.length === 2 && SECOND_LEVEL.test(parts.at(-2)!) ? -3 : -2).join(".");
+}
+
 export function hostOf(url: string): string | null {
   try {
     return new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname.toLowerCase().replace(/^www\./, "");
@@ -207,18 +214,17 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
 
   flags.unshift(...extra); // proof beats pattern matching for the two reasons on the card
 
-  // dedupe by code, keep first
-  const unique = flags.filter((f, i) => flags.findIndex((g) => g.code === f.code) === i);
-  const sorted = [...unique].sort((a, b) => RANK[b.level] - RANK[a.level]);
-  const level: Level = sorted.length ? sorted[0].level : "low";
-  const top = sorted[0];
+  // dedupe by code, keeping the most severe
+  const unique = [...flags].sort((a, b) => RANK[b.level] - RANK[a.level]).filter((f, i, all) => all.findIndex((g) => g.code === f.code) === i);
+  const level: Level = unique.length ? unique[0].level : "low";
+  const top = unique[0];
 
   return {
     level,
-    reasons: sorted.length ? sorted.slice(0, 2).map((f) => f.text) : ["No common warning signs found in this text. That doesn't prove it's real."],
+    reasons: unique.length ? unique.slice(0, 2).map((f) => f.text) : ["No common warning signs found in this text. That doesn't prove it's real."],
     nextStep: level === "low" ? LOW_NEXT : NEXT_STEP[top.code] ?? DEFAULT_NEXT,
     intent: intentOf(unique, text, !!formHost, hosts.length > 0),
-    flags: sorted,
+    flags: unique,
     evidence: {
       sender: senderEvidence ?? unique.find((f) => ["FREE_MAIL_CLAIM", "LOOKALIKE_DOMAIN", "WRONG_DOMAIN", "COMPANY_DOMAIN_MISMATCH", "BLOCKED_SENDER", "HACKED_ACCOUNT"].includes(f.code))?.text ?? null,
       company: null,

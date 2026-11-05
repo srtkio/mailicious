@@ -1,5 +1,8 @@
-// Reads real mail headers and raw messages. Pure. This is what a pasted body alone can never show:
+// Reads real mail headers and raw messages. This is what a pasted body alone can never show:
 // the receiving mail server's own verdict on whether the sender is genuine.
+import { simpleParser } from "mailparser";
+import { parse } from "parse5";
+import { registrable } from "./engine";
 import type { Flag, LinkPair, SecurityCheck } from "./types";
 
 const headerValues = (block: string, name: string): string[] =>
@@ -11,17 +14,30 @@ const headerValues = (block: string, name: string): string[] =>
 
 const address = (v = "") => (v.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] ?? v.match(/[^\s<>"',;]+@[^\s<>"',;]+/)?.[0] ?? "").toLowerCase();
 const domainOf = (a: string) => a.split("@").pop() ?? "";
-const baseDomain = (d: string) => d.split(".").slice(-2).join(".");
+
+// Reads methods from the start of each ";" segment after removing comments and quoted strings, so an
+// address containing "dmarc=pass" can't pose as a result. One failure of a method counts as failed.
+function authResults(value: string): Record<string, string> {
+  const clean = value.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/\([^()]*\)/g, " ");
+  const found: Record<string, string> = {};
+  for (const segment of clean.split(";").slice(1)) {
+    const m = segment.match(/^\s*(spf|dkim|dmarc)\s*=\s*(\w+)/i);
+    if (!m) continue;
+    const [method, verdict] = [m[1].toLowerCase(), m[2].toLowerCase()];
+    if (!found[method] || found[method] === "pass") found[method] = verdict;
+  }
+  return found;
+}
 
 export type HeaderReport = { from: string; flags: Flag[]; checks: SecurityCheck[] };
 
 export function analyzeHeaders(block: string): HeaderReport {
   const from = address(headerValues(block, "from")[0]);
-  const replyTo = address(headerValues(block, "reply-to")[0]);
+  const replyTo = (headerValues(block, "reply-to")[0] ?? "").split(",").map(address).filter(Boolean);
   // Only the top one counts: it's the receiver's. Anything below can be forged by the sender.
-  const auth = headerValues(block, "authentication-results")[0] ?? headerValues(block, "arc-authentication-results")[0] ?? "";
-  const result = (kind: string) => auth.match(new RegExp(`\\b${kind}=(\\w+)`, "i"))?.[1].toLowerCase() ?? null;
-  const [spf, dkim, dmarc] = [result("spf"), result("dkim"), result("dmarc")];
+  const auth = headerValues(block, "authentication-results")[0] ?? "";
+  const results = authResults(auth);
+  const [spf, dkim, dmarc] = [results.spf ?? null, results.dkim ?? null, results.dmarc ?? null];
   const domain = domainOf(from) || "the sender's domain";
 
   const flags: Flag[] = [];
@@ -40,59 +56,57 @@ export function analyzeHeaders(block: string): HeaderReport {
     checks.push({ label: "Sender authentication", status: "pass", detail: summary });
   }
 
-  if (replyTo && from && baseDomain(domainOf(replyTo)) !== baseDomain(domainOf(from))) {
-    flags.push({ code: "REPLY_TO_MISMATCH", level: "medium", text: `It's from ${domainOf(from)}, but replies would go to ${domainOf(replyTo)}.` });
-    checks.push({ label: "Reply address", status: "fail", detail: `Replies go to ${replyTo}, not the sender.` });
+  const elsewhere = from ? replyTo.find((a) => registrable(domainOf(a)) !== registrable(domainOf(from))) : undefined;
+  if (elsewhere) {
+    flags.push({ code: "REPLY_TO_MISMATCH", level: "medium", text: `It's from ${domainOf(from)}, but replies would go to ${domainOf(elsewhere)}.` });
+    checks.push({ label: "Reply address", status: "fail", detail: `Replies go to ${elsewhere}, not the sender.` });
   } else if (from) {
     checks.push({ label: "Reply address", status: "pass", detail: "Replies go back to the sender's own domain." });
   }
   return { from, flags, checks };
 }
 
-function decodeBody(body: string, encoding: string): string {
-  if (/base64/i.test(encoding)) return Buffer.from(body.replace(/\s/g, ""), "base64").toString("utf8");
-  if (/quoted-printable/i.test(encoding))
-    return Buffer.from(
-      body.replace(/=\r?\n/g, "").replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16))),
-      "latin1",
-    ).toString("utf8");
-  return body;
+type Node = { nodeName: string; value?: string; attrs?: { name: string; value: string }[]; childNodes?: Node[] };
+
+// Iterative, because a mail can nest elements deeply enough to overflow a recursive walk.
+function textOf(root: Node): string {
+  const parts: string[] = [];
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop()!;
+    if (node.nodeName === "#text") parts.push(node.value ?? "");
+    if (node.nodeName === "style" || node.nodeName === "script") continue;
+    if (/^(p|div|br|tr|li)$/.test(node.nodeName)) parts.push(" ");
+    stack.push(...[...(node.childNodes ?? [])].reverse());
+  }
+  return parts.join("").replace(/\s+/g, " ").trim();
 }
 
-const stripTags = (html: string) =>
-  html
-    .replace(/<(style|script)[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<(br|\/p|\/div|\/tr)[^>]*>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&");
-
-type Parts = { plain: string; html: string; attachments: string[] };
-
-function walk(part: string, out: Parts, depth = 0): void {
-  const split = part.search(/\r?\n\r?\n/);
-  const head = split < 0 ? part : part.slice(0, split);
-  const body = split < 0 ? "" : part.slice(split).trimStart();
-  const type = headerValues(head, "content-type")[0] ?? "text/plain";
-  const boundary = type.match(/boundary="?([^";]+)"?/i)?.[1];
-  if (boundary && depth < 5) {
-    for (const sub of body.split(`--${boundary}`).slice(1)) if (!sub.startsWith("--")) walk(sub.replace(/^\r?\n/, ""), out, depth + 1);
-    return;
+function readHtml(html: string): { text: string; linkPairs: LinkPair[] } {
+  const root = parse(html) as unknown as Node;
+  const linkPairs: LinkPair[] = [];
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop()!;
+    const href = node.nodeName === "a" ? node.attrs?.find((a) => a.name === "href")?.value.trim() : undefined;
+    if (href && /^https?:/i.test(href)) linkPairs.push({ href: href.slice(0, 2000), text: textOf(node).slice(0, 500) });
+    stack.push(...[...(node.childNodes ?? [])].reverse());
   }
-  const disposition = headerValues(head, "content-disposition")[0] ?? "";
-  const filename = `${disposition} ${type}`.match(/(?:file)?name="?([^";]+)"?/i)?.[1];
-  if (filename) out.attachments.push(filename.trim());
-  else if (/text\/html/i.test(type)) out.html += decodeBody(body, headerValues(head, "content-transfer-encoding")[0] ?? "");
-  else if (/text\/plain/i.test(type)) out.plain += decodeBody(body, headerValues(head, "content-transfer-encoding")[0] ?? "");
+  return { text: textOf(root), linkPairs };
 }
 
 export type ParsedMail = { headers: string; text: string; linkPairs: LinkPair[]; attachments: string[] };
 
-export function parseRawMail(raw: string): ParsedMail {
+export async function parseRawMail(raw: string): Promise<ParsedMail> {
   const split = raw.search(/\r?\n\r?\n/);
-  const headers = split < 0 ? raw : raw.slice(0, split);
-  const out: Parts = { plain: "", html: "", attachments: [] };
-  if (split >= 0) walk(raw, out);
-  const linkPairs = [...out.html.matchAll(/<a\b[^>]*href=["']?([^"'\s>]+)[^>]*>([\s\S]*?)<\/a>/gi)].map((m) => ({ href: m[1], text: stripTags(m[2]).trim() }));
-  return { headers, text: (out.plain || stripTags(out.html)).trim(), linkPairs: linkPairs.filter((l) => /^https?:/i.test(l.href)), attachments: out.attachments };
+  const mail = await simpleParser(raw, { skipImageLinks: true, skipTextLinks: true });
+  const html = mail.html ? readHtml(mail.html) : { text: "", linkPairs: [] };
+  const plain = mail.text?.trim() ?? "";
+  return {
+    headers: split < 0 ? raw : raw.slice(0, split),
+    // Both are scanned: a scam can show one thing in HTML and another in the plain part.
+    text: [html.text, plain.replace(/\s+/g, " ") === html.text ? "" : plain].filter(Boolean).join("\n"),
+    linkPairs: html.linkPairs,
+    attachments: mail.attachments.flatMap((a) => a.filename ?? []),
+  };
 }

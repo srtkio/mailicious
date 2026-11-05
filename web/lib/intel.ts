@@ -1,19 +1,13 @@
 // Threat intelligence about domains and links. Server only. Asks public registries and reputation services,
 // never the scammer's own site. Any lookup that fails is shown as skipped and adds no flags.
-import { COLLEGE_DOMAIN, COMPANIES, FREE_MAIL, hostOf, isOn, SHORTENERS } from "./engine";
+import { COLLEGE_DOMAIN, COMPANIES, FREE_MAIL, hostOf, isOn, registrable, SHORTENERS } from "./engine";
 import type { Flag, SecurityCheck } from "./types";
 
 const TIMEOUT_MS = 4000;
 const NEW_DAYS = 30;
 const YOUNG_DAYS = 180;
 const MAX_DOMAINS = 3;
-const SECOND_LEVEL = /^(co|org|net|ac|edu|gov|gen|firm|res)$/;
 const KNOWN_SAFE = [...Object.values(COMPANIES).flat(), ...FREE_MAIL, COLLEGE_DOMAIN, "google.com", "gle", "forms.gle", ...SHORTENERS];
-
-export function registrable(host: string): string {
-  const parts = host.split(".");
-  return parts.slice(parts.length > 2 && parts.at(-1)!.length === 2 && SECOND_LEVEL.test(parts.at(-2)!) ? -3 : -2).join(".");
-}
 
 async function getJson(url: string, init?: RequestInit): Promise<any> { // eslint-disable-line @typescript-eslint/no-explicit-any
   const res = await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
@@ -83,21 +77,29 @@ async function linkIntel(urls: string[]): Promise<{ flags: Flag[]; checks: Secur
   if (!urls.length) return { flags: [], checks: [{ label: "Link reputation", status: "skip", detail: "This mail has no links to check." }] };
   // Paths are kept and queries dropped, so a personal token in a link isn't sent to a third party.
   const clean = [...new Set(urls.flatMap((u) => { try { const p = new URL(/^https?:/i.test(u) ? u : `https://${u}`); return [p.origin + p.pathname]; } catch { return []; } }))].slice(0, 20);
-  const domains = [...new Set(clean.map((u) => registrable(hostOf(u) ?? "")).filter((d) => d && !isOn(d, KNOWN_SAFE)))].slice(0, MAX_DOMAINS);
-  const [sb, vt] = await Promise.allSettled([safeBrowsing(clean), Promise.all(domains.map(virusTotal))]);
+  const unknown = [...new Set(clean.map((u) => registrable(hostOf(u) ?? "")).filter((d) => d && !isOn(d, KNOWN_SAFE)))];
+  const domains = unknown.slice(0, MAX_DOMAINS);
+  const [sb, ...vt] = await Promise.allSettled([safeBrowsing(clean), ...domains.map(virusTotal)]);
 
   const flags: Flag[] = [];
-  const listed = sb.status === "fulfilled" ? sb.value : [];
-  const detections = vt.status === "fulfilled" ? Math.max(0, ...vt.value) : 0;
+  const listed = sb.status === "fulfilled" ? (sb.value as string[]) : [];
+  const counted = vt.flatMap((v) => (v.status === "fulfilled" ? [v.value as number] : []));
+  const detections = Math.max(0, ...counted);
   if (listed.length) flags.push({ code: "KNOWN_MALICIOUS", level: "high", text: `Google Safe Browsing lists ${hostOf(listed[0])} as dangerous.` });
   if (detections >= 2) flags.push({ code: "KNOWN_MALICIOUS", level: "high", text: `${detections} security vendors on VirusTotal flag a link in this mail as malicious.` });
-  const ran = sb.status === "fulfilled" || vt.status === "fulfilled";
+  const vtOn = !!process.env.VIRUSTOTAL_API_KEY;
+  if (vtOn && unknown.length > domains.length) flags.push({ code: "LINK_NOT_CHECKED", level: "medium", text: `This mail links to ${unknown.length} unfamiliar sites, too many to check them all.` });
+  const ran = sb.status === "fulfilled" || counted.length > 0;
+  const partial = vtOn && counted.length < domains.length;
+  const danger = flags.find((f) => f.code === "KNOWN_MALICIOUS");
   const checks: SecurityCheck[] = [
-    !ran
-      ? { label: "Link reputation", status: "skip", detail: "Reputation services weren't available for this check." }
-      : flags.length
-        ? { label: "Link reputation", status: "fail", detail: flags[0].text }
-        : { label: "Link reputation", status: "pass", detail: "No link is on the blocklists we checked." },
+    danger
+      ? { label: "Link reputation", status: "fail", detail: danger.text }
+      : !ran
+        ? { label: "Link reputation", status: "skip", detail: "Reputation services weren't available for this check." }
+        : flags.length || partial
+          ? { label: "Link reputation", status: "warn", detail: "Nothing is on the blocklists, but some links couldn't be checked." }
+          : { label: "Link reputation", status: "pass", detail: "No link is on the blocklists we checked." },
   ];
   return { flags, checks };
 }

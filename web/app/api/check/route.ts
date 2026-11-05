@@ -4,7 +4,7 @@ import { analyzeHeaders, parseRawMail } from "@/lib/headers";
 import { threatIntel } from "@/lib/intel";
 import { checkLinks } from "@/lib/links";
 import { securityReport } from "@/lib/report";
-import type { CheckRequest } from "@/lib/types";
+import type { CheckRequest, Flag } from "@/lib/types";
 
 const MAX_TEXT = 20_000;
 const MAX_LINKS = 20;
@@ -47,7 +47,8 @@ export async function POST(request: Request) {
   const pairsOk = input.linkPairs === undefined || (Array.isArray(input.linkPairs) && input.linkPairs.length <= MAX_LINKS * 3 && input.linkPairs.every((l) => typeof l?.href === "string" && l.href.length <= 2000 && typeof l?.text === "string" && l.text.length <= 500));
   if (!pairsOk) return Response.json({ error: "linkPairs is invalid" }, { status: 400 });
 
-  const parsed = raw ? parseRawMail(raw) : null;
+  const parsed = raw ? await parseRawMail(raw).catch(() => null) : null;
+  if (raw && !parsed) return Response.json({ error: "Couldn't read that mail file" }, { status: 400 });
   const text = parsed?.text.slice(0, MAX_TEXT) ?? input.text;
   if (typeof text !== "string" || !text.trim()) return Response.json({ error: "text is required" }, { status: 400 });
   if (text.length > MAX_TEXT) return Response.json({ error: `text is over ${MAX_TEXT} characters` }, { status: 413 });
@@ -58,7 +59,12 @@ export async function POST(request: Request) {
   const sender = input.sender || headers?.from || "";
   const linkPairs = [...(input.linkPairs ?? []), ...(parsed?.linkPairs ?? [])].slice(0, MAX_LINKS * 3);
   const files = [...attachments, ...(parsed?.attachments ?? [])];
-  const allLinks = [...new Set([...findLinks(text, links), ...linkPairs.map((l) => l.href)])].slice(0, MAX_LINKS);
+  // Real link targets come first, so text can't pad them out of the limit.
+  const everyLink = [...new Set([...linkPairs.map((l) => l.href), ...findLinks(parsed?.text ?? text, links)])];
+  const allLinks = everyLink.slice(0, MAX_LINKS);
+  const unread: Flag[] = [];
+  if (everyLink.length > MAX_LINKS) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: `This mail has ${everyLink.length} links, too many to check them all.` });
+  if (parsed && parsed.text.length > MAX_TEXT) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: "This mail is too long to read in full." });
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
   const deadline = new Promise<null>((resolve) => setTimeout(() => resolve(null), AI_BUDGET_MS));
@@ -71,6 +77,7 @@ export async function POST(request: Request) {
     threatIntel(sender, allLinks).catch(() => ({ flags: [], checks: [] })),
   ]);
   const extra = [
+    ...unread,
     ...signalFlags(claims?.signals ?? []),
     ...(company?.flags ?? []),
     ...linkFlags,

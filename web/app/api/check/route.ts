@@ -7,6 +7,7 @@ const MAX_TEXT = 20_000;
 const MAX_LINKS = 20;
 
 const AI_PER_MINUTE = 20;
+const AI_BUDGET_MS = 15_000; // model retries can stack past 45s when Gemini is busy, and a worried student won't wait
 const aiCalls = new Map<string, { count: number; start: number }>();
 
 // Over the limit means rules and link checks only, never an error: a whole campus can share one IP.
@@ -38,9 +39,10 @@ export async function POST(request: Request) {
     return Response.json({ error: `links must be up to ${MAX_LINKS} strings` }, { status: 400 });
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
-  const claims = underAiLimit(ip) ? await extractClaims(text, sender) : null;
+  const deadline = new Promise<null>((resolve) => setTimeout(() => resolve(null), AI_BUDGET_MS));
+  const claims = underAiLimit(ip) ? await Promise.race([extractClaims(text, sender), deadline]) : null;
   const seed = claimedCompany(text);
-  const [company, linkFlags] = await Promise.all([claims ? checkCompany(claims, sender, seed) : null, checkLinks(text, links, seed ?? claims?.company ?? undefined)]);
+  const [company, linkFlags] = await Promise.all([claims ? Promise.race([checkCompany(claims, sender, seed), deadline]) : null, checkLinks(text, links, seed ?? claims?.company ?? undefined)]);
   const extra = [...signalFlags(claims?.signals ?? []), ...(company?.flags ?? []), ...linkFlags];
   const result = checkRules(text, sender, links, [], extra);
 

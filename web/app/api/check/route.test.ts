@@ -12,6 +12,19 @@ import { extractClaims } from "@/lib/ai";
 const call = (ip: string) =>
   POST(new Request("http://x/api/check", { method: "POST", headers: { "x-forwarded-for": ip }, body: JSON.stringify({ text: "Share the OTP now" }) }));
 
+describe("AI time budget", () => {
+  it("answers from the rules when the AI hangs", async () => {
+    vi.useFakeTimers();
+    vi.mocked(extractClaims).mockReturnValueOnce(new Promise(() => {}));
+    const pending = call("3.3.3.3");
+    await vi.advanceTimersByTimeAsync(15_000);
+    const body = await (await pending).json();
+    vi.useRealTimers();
+    expect(body).toMatchObject({ level: "high", mode: "limited" });
+    vi.mocked(extractClaims).mockClear();
+  });
+});
+
 describe("AI rate limit", () => {
   it("stops calling the AI past the limit but still answers from the rules", async () => {
     for (let i = 0; i < 20; i++) await call("1.1.1.1");

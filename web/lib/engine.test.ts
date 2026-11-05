@@ -59,6 +59,7 @@ describe("deepRules", () => {
   it("catches look-alike and disguised addresses", () => {
     expect(codes({ links: ["https://micros0ft-careers.example/"] })).toContain("LOOKALIKE_LINK");
     expect(codes({ links: ["https://rnicrosoft.example/"] })).toContain("LOOKALIKE_LINK");
+    expect(codes({ links: ["https://rnicrosoft-careers.example/"] })).toContain("LOOKALIKE_LINK");
     expect(codes({ links: ["https://xn--microsft-d1a.example/"] })).toContain("HOMOGRAPH_LINK");
     expect(codes({ links: ["https://careers.microsoft.com/"] })).toEqual([]);
   });

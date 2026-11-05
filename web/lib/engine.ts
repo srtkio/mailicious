@@ -104,9 +104,10 @@ function editDistance(a: string, b: string): number {
 // "microsft.com" or "rnicrosoft.com" imitating a seed company, whether or not the mail names it.
 function imitatedCompany(host: string): string | undefined {
   const label = host.split(".").slice(-2)[0].replace(/rn/g, "m");
+  const name = host.split(".").slice(0, -1).join("");
   return Object.keys(COMPANIES).find((c) => {
-    if (isOn(host, COMPANIES[c])) return false;
-    return (c.length >= 5 && editDistance(unswap(label), c) <= 2) || (c.length >= 5 && unswap(host.split(".").slice(0, -1).join("")).includes(c));
+    if (c.length < 5 || isOn(host, COMPANIES[c])) return false;
+    return editDistance(unswap(label), c) <= 2 || unswap(name).includes(c) || unswap(name.replace(/rn/g, "m")).includes(c);
   });
 }
 

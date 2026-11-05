@@ -49,8 +49,11 @@ function authResults(value: string): Record<string, string> {
     const m = segment.match(/^\s*(spf|dkim|dmarc)\s*=\s*(\w+)/i);
     if (m) record(m[1].toLowerCase(), m[2].toLowerCase());
   }
-  // A broken comment can swallow the rest of the header, so every result anywhere in it counts.
-  if (malformed) for (const m of value.matchAll(/\b(spf|dkim|dmarc)\s*=\s*(\w+)/gi)) record(m[1].toLowerCase(), m[2].toLowerCase());
+  // A broken comment can swallow the rest of the header, so scan it all, but this scan can only make a result
+  // worse: text in a broken header can be planted, so a "pass" found here proves nothing.
+  if (malformed)
+    for (const m of value.matchAll(/\b(spf|dkim|dmarc)\s*=\s*(\w+)/gi))
+      if (m[2].toLowerCase() !== "pass") record(m[1].toLowerCase(), m[2].toLowerCase());
   return found;
 }
 

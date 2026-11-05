@@ -57,6 +57,11 @@ describe("analyzeHeaders", () => {
     expect(codes(head("spf=pass (unclosed; dkim=pass; dmarc=hardfail"))).toContain("AUTH_FAIL");
     expect(codes(head("spf=softfail (unclosed; dkim=pass; dmarc=pass"))).toContain("AUTH_WEAK");
   });
+  it("never accepts a pass planted in a broken header", () => {
+    const r = analyzeHeaders(head("spf=pass smtp.mailfrom=a(dmarc=pass@evil.example; dkim=pass"));
+    expect(r.checks[0].status).toBe("warn");
+    expect(analyzeHeaders(head("spf=pass; dkim=pass; dmarc=pass")).checks[0].status).toBe("pass");
+  });
   it("isn't fooled by nested comments", () => {
     expect(codes(head("spf=fail (x (y) ; dmarc=pass) ; dkim=fail; dmarc=fail"))).toContain("AUTH_FAIL");
   });

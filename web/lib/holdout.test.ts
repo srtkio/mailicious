@@ -10,7 +10,15 @@ import type { Level } from "./types";
 const RANK: Record<Level, number> = { low: 0, medium: 1, high: 2 };
 
 // Known misses, with the cause. it.fails keeps `npm test` green and goes red once one is fixed. Never edit the mail instead.
-const KNOWN_MISSES: Record<string, string> = {};
+const KNOWN_MISSES: Record<string, string> = {
+  "h-scam-3": "low: 'one 6 digit number will come on your mobile, tell that number' names no OTP or code",
+  "h-scam-8": "low: rishihood-support.example imitates the college domain, but look-alike checks cover only seed companies; 'verify your account' isn't a rule",
+  "h-scam-12": "low: a .zip attachment isn't treated as risky",
+  "h-scam-18": "low: 'activation code ... share it in reply' isn't read as a secret",
+  "h-real-3": "high ASKS_FEE: a placement-cell training fee paid on the college ERP reads like a scam fee",
+  "h-real-7": "medium WRONG_DOMAIN: 'on Google Meet' is read as claiming to be Google",
+  "h-real-14": "high ASKS_FEE: the warning 'if any person asks you for a fee, report' reads as a fee request",
+};
 
 function judge(m: Mail): Level {
   const headers = m.headers ? analyzeHeaders(m.headers) : null;

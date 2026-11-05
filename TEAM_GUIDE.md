@@ -27,7 +27,7 @@ There are three pieces, all using one engine:
 | Domain age, mail server, link reputation (`web/lib/intel.ts`) | Done |
 | Website with security report and extension download | Done, live |
 | Gmail extension (`extension/`) | Works in real Gmail: card, security report and real SPF, DKIM and DMARC results confirmed. Link warning and reply warning only tested on a fake page |
-| Placement-cell dashboard and campus blocklist | Not started, needs Supabase keys |
+| Placement-cell dashboard, reporting and campus blocklist (`web/lib/store.ts`) | Built at `/dashboard`, needs the Supabase secret key and `supabase/schema.sql` run once |
 | Pitch deck | Not started |
 
 ## Run it
@@ -132,6 +132,10 @@ Flags you'll see:
 - Don't say scammers can't tell a mail was checked. We don't touch their sites, but checking a short link counts as a click on the shortener's stats.
 - Sender checks need real headers: the extension and Show original or `.eml` have them, plain pasted text doesn't.
 - The page says we don't save mail and that its text goes to Google's AI. Keep that true.
+
+## Accuracy
+
+Blind test, offline rules only, on 40 fictional mails written without seeing the fixes: 80% of scams caught, 15% false alarms. That's the honest number so far. The engine was then fixed against those mails, so a later score on the same mails doesn't count. Quote only a score from mails the engine hasn't been fixed against.
 
 ## Limits to know
 

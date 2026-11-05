@@ -68,17 +68,28 @@ const unswap = (s: string) => s.replace(/0/g, "o").replace(/1/g, "l").replace(/3
 export const SECRET = /\b(otp|one[- ]time password|verification code|password|passcode|(upi|atm|card) pin)\b/i;
 export const ID_OR_BANK = /\b(aadhaa?r|pan\b|pan card|bank account|account number|ifsc|upi|cvv|card number|debit card)\b/i;
 
-const SMS = /\b(sms|text message|(on|to) your (phone|mobile))\b/i;
-const CODE = /(?<!\b(?:pin|zip|dress|source|promo|referral) )\bcode\b/i;
-const AMOUNT = /(?:\brs\.?|\binr|₹)\s*\d[\d,]*/gi;
-// Money you'd receive. Judged beside the amount, because "INR 1999, returned with your first stipend" is still a fee.
-const INCOME = /\b(stipend|salary|ctc|lpa|per month|monthly|a month|pay of|pay you|package|allowance|bonus|reimburs\w*|scholarship|prize|award)\b/i;
-const FEE_SETTLED = /\b(included in (your|the) (semester|tuition|college)|waived)\b/i;
-const PAY_AMOUNT = /\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i;
+// A code sent to you that you're asked to pass on, whatever it's called. Requires both halves, and no word near
+// "code" can clear it. Entering a code on a site is normal, so only handing it to a person counts.
+const CODE_SENT = /\b\d[- ]digit\s+(number|code|pin)\b|\b(activation|security|login|confirmation|access|sms|secret|unique)\s+code\b|\bcode\b[^.!?\n]{0,60}\b(sms|text message|mobile|phone)\b|\b(sms|text message|mobile|phone)\b[^.!?\n]{0,60}\bcode\b/i;
+const PASS_BACK = /\b(shar(e|ing)|send|forward(ing)?|tell|reply|give|mention)\b/i;
+const THE_CODE = /\b(that|this|the|same)\s+(code|number|pin)\b|\bcode\b|\bit\b/i;
+
+const AMOUNT = /(?:\brs\b\.?|\binr\b|₹)\s*\d[\d,]*|\b\d[\d,]*\s*(?:rupees|inr|\/-)/gi;
+// Money you'd receive only counts when the wording binds it to this amount, so a salary nearby can't clear a fee.
+const INCOME_BEFORE = /\b(stipend|salary|ctc|package|allowance|bonus|scholarship|prize|pay of|pay you|paid)\b\s*(of|is|are|:|will be|=|up to)?\s*$/i;
+const INCOME_AFTER = /^\s*(\/-)?\s*(per month|\/\s*month|monthly|a month|lpa|stipend|salary|ctc|allowance|bonus|scholarship)\b/i;
+// Clears a fee only when these words are tied to it, or when warning about someone else asking. The rest of the sentence is still read.
+const SETTLED_FEE = /\b(fees?|charges)\b[^.!?\n]{0,40}?\b(is|are|has been|have been|will be)\s+(waived|included in (your|the) (semester|tuition|college) fees?)/gi;
+const FEE_WARNING = /\bif\s+(any\s+\w+|anyone|someone|a\s+\w+)\s+(asks?|demands?|requests?)\s+(you\s+)?(for\s+)?(a\s+|any\s+)?(fees?|money|payment|deposit)\b/gi;
+const CREDENTIALS = /\b(verify|confirm|validate|update)\s+(your\s+)?(account|mailbox|email|login|credentials)\b|\bmailbox\b[^.!?\n]{0,30}\bfull\b/i;
+// Naming a tool isn't claiming to be the company that makes it.
+const TOOL_NAMES = /\b(google\s+(meet|forms?|drive|docs?|sheets?|classroom|calendar)|microsoft\s+(teams|office|word|excel|forms?|outlook)|amazon\s+(pay|prime|web services))\b/gi;
 
 // An amount to pay that isn't called a fee, like "laptop shipping amount of ₹899 must be cleared".
 function asksForMoney(text: string): boolean {
-  const owed = [...text.matchAll(AMOUNT)].some((m) => !INCOME.test(text.slice(Math.max(0, m.index - 25), m.index + m[0].length + 25)));
+  const owed = sentences(text.replace(/\brs\.\s*/gi, "Rs ")).some((s) =>
+    [...s.matchAll(AMOUNT)].some((m) => !INCOME_BEFORE.test(s.slice(0, m.index)) && !INCOME_AFTER.test(s.slice(m.index + m[0].length))),
+  );
   return owed && asks(text, /\b(transfer|remit|cleared?|pay|paid|payment)\b/i);
 }
 
@@ -86,7 +97,10 @@ export function findLinks(text: string, links: string[] = []): string[] {
   return [...links, ...(text.match(/\b(?:https?:\/\/|www\.)[^\s<>"')]+|\b(?:bit\.ly|forms\.gle|tinyurl\.com|cutt\.ly|rb\.gy)\/[^\s<>"')]+/gi) ?? [])];
 }
 
-export const claimedCompany = (text: string) => Object.keys(COMPANIES).find((c) => new RegExp(`\\b${c}\\b`, "i").test(text));
+export const claimedCompany = (text: string) => {
+  const named = text.replace(TOOL_NAMES, " ");
+  return Object.keys(COMPANIES).find((c) => new RegExp(`\\b${c}\\b`, "i").test(named));
+};
 
 function sentences(text: string): string[] {
   return text.split(/[.!?\n]+/).map((s) => s.trim()).filter(Boolean);
@@ -122,12 +136,14 @@ function editDistance(a: string, b: string): number {
   return row[b.length];
 }
 
+const IMITATED: Record<string, string[]> = { ...COMPANIES, rishihood: [COLLEGE_DOMAIN] };
+
 // "microsft.com" or "rnicrosoft.com" imitating a seed company, whether or not the mail names it.
 function imitatedCompany(host: string): string | undefined {
   const label = host.split(".").slice(-2)[0].replace(/rn/g, "m");
   const name = host.split(".").slice(0, -1).join("");
-  return Object.keys(COMPANIES).find((c) => {
-    if (c.length < 5 || isOn(host, COMPANIES[c])) return false;
+  return Object.keys(IMITATED).find((c) => {
+    if (c.length < 5 || isOn(host, IMITATED[c])) return false;
     return editDistance(unswap(label), c) <= 2 || unswap(name).includes(c) || unswap(name.replace(/rn/g, "m")).includes(c);
   });
 }
@@ -159,6 +175,7 @@ export function deepRules({ sender = "", links = [], linkPairs = [], attachments
   for (const name of attachments) {
     if (DANGEROUS_FILE.test(name.trim())) add("DANGEROUS_ATTACHMENT", "high", `The attachment "${name.slice(0, 60)}" is a program, not a document.`);
     else if (/\.html?$/i.test(name.trim())) add("DANGEROUS_ATTACHMENT", "medium", `The attachment "${name.slice(0, 60)}" is a web page, a common way to fake a login screen.`);
+    else if (/\.(zip|rar|7z|tar|gz|docm|xlsm|pptm)$/i.test(name.trim())) add("DANGEROUS_ATTACHMENT", "medium", `The attachment "${name.slice(0, 60)}" can hide a program. Don't open it until you've verified the sender.`);
   }
   return flags;
 }
@@ -171,10 +188,10 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   // --- what the mail asks you to do ---
   const shareVerb = /\b(shar(e|es|ed|ing)|send(s|ing)?|repl(y|ies|ying)|provid(e|ing)|tell|forward(ing)?|enter(ing)?|submit(ting)?|give|giving|mention|fill(ing)?)\b/i;
   // "pin" alone would hit "PIN code" in addresses, so only UPI/ATM/card PINs count.
-  if (asks(text, SECRET, shareVerb) || (SMS.test(text) && asks(text, CODE, shareVerb)))
+  if (asks(text, SECRET, shareVerb) || (CODE_SENT.test(text) && asks(text, THE_CODE, PASS_BACK)))
     add("ASKS_SECRET", "high", "It asks you to share an OTP or password. No real recruiter ever needs this.");
   // Matches money *you* pay (fee/deposit, "pay ₹500"), not salary text like "pay of ₹20,000".
-  const feeText = sentences(text).filter((s) => !FEE_SETTLED.test(s) || PAY_AMOUNT.test(s)).join(". ");
+  const feeText = text.replace(SETTLED_FEE, " ").replace(FEE_WARNING, " ");
   if (asks(feeText, /\b(fee|fees|deposit|charges)\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i) || asksForMoney(feeText))
     add("ASKS_FEE", "high", "It asks you to pay money. Real companies don't charge you to get hired.");
   if (asks(text, ID_OR_BANK, shareVerb))
@@ -183,6 +200,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
     add("MOVE_TO_CHAT", "medium", "It moves the conversation to WhatsApp/Telegram, away from official channels.");
   if (/\bno (interview|test|assessment)\b|\bwithout (any )?(interview|test)\b|\byou (have been|are|were) (directly )?selected\b/i.test(text))
     add("TOO_GOOD", "medium", "It says you're selected without any interview, which real hiring doesn't do.");
+  if (CREDENTIALS.test(text)) add("ASKS_LOGIN", "medium", "It pushes you to verify an account, a common way to steal passwords.");
   if (/\b(within \d+ ?(hours?|hrs|minutes?)|immediately|urgent(ly)?|last chance|today only|expires? (today|tonight|soon))\b/i.test(text))
     add("URGENCY", "low", "It pushes you to act fast, a common pressure trick.");
 
@@ -259,6 +277,7 @@ const ATTACKS: [string, string][] = [
   ["KNOWN_MALICIOUS", "Known phishing or malware site"],
   ["ASKS_FEE", "Advance-fee scam"],
   ["ASKS_DOCUMENTS", "Identity theft"],
+  ["ASKS_LOGIN", "Account phishing"],
   ["AUTH_FAIL", "Email spoofing"],
   ["HIDDEN_LINK", "Disguised link phishing"],
   ["HOMOGRAPH_LINK", "Homograph attack"],

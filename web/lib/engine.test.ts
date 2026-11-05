@@ -83,9 +83,28 @@ describe("deepRules", () => {
     expect(level("Fee waived if you pay Rs 500 today.")).toBe("high");
     expect(level("For the assignment, share the code on GitHub.")).toBe("low");
     expect(level("We sent an SMS with the venue. Enter your PIN code in the portal.")).toBe("low");
+    expect(level("Fee waived if you pay the ₹500 deposit.")).toBe("high");
+    expect(level("Pay a deposit of ₹1500, late charges are waived.")).toBe("high");
+    expect(level("Your salary is Rs 50,000. The kit costs ₹500, kindly pay today.")).toBe("high");
+    expect(level("The kit costs ₹500 against your stipend, kindly transfer it.")).toBe("high");
+    expect(level("We sent a PIN code to your mobile, reply with it.")).toBe("high");
+    expect(level("We sent a referral code to your phone. Please forward that code.")).toBe("high");
+    expect(level("Please share your mobile number and resume.")).toBe("low");
+    expect(level("Enter the code sent to your phone on the portal.")).toBe("low");
+    expect(level("If anyone asks you for a fee, tell the placement cell.")).toBe("low");
+    expect(level("If anyone asks you for a fee, pay the deposit of Rs 500 to us.")).toBe("high");
     expect(level("Stipend is Rs 25,000 per month, paid on the 5th.")).toBe("low");
     expect(level("We will pay you Rs 30,000 and the travel allowance of Rs 2,000 after joining.")).toBe("low");
     expect(level("The fee is included in your semester fees. You do not need to pay anyone.")).toBe("low");
+  });
+  it("doesn't read a tool as a claim to be its maker", () => {
+    expect(checkRules("Your interview is on Google Meet.", "hr@acme.example").level).toBe("low");
+    expect(checkRules("Google internship: interview on Google Meet.", "hr@acme.example").flags.map((f) => f.code)).toContain("WRONG_DOMAIN");
+  });
+  it("catches a look-alike of the college and archives", () => {
+    expect(deepRules({ sender: "it@rishihood-support.example" })[0].code).toBe("LOOKALIKE_DOMAIN");
+    expect(deepRules({ sender: "it@rishihood.edu.in" })).toEqual([]);
+    expect(deepRules({ attachments: ["offer.zip"] })[0].level).toBe("medium");
   });
   it("names the attack on the result", () => {
     expect(checkRules("Pay the registration fee of Rs 500.").attack).toBe("Advance-fee scam");

@@ -2,7 +2,7 @@
 
 Start here. This is the one page for what we're building, how to run it, who does what and what's left. If something changes, update this file in the same commit.
 
-**Submission is due 6 Nov.** `TEAM_PLAN.md` has the full original plan and the pitch answers.
+**Live site: https://placementshield.vercel.app.** Submission is due 6 Nov. `TEAM_PLAN.md` has the full original plan and the pitch answers.
 
 ## What we're building
 
@@ -25,7 +25,7 @@ There are three pieces, all using one engine:
 | `POST /api/check` | Done, with rules, link checks, AI and company search | Lead |
 | Paste checker page (`web/app/page.tsx`) | Done | Lead |
 | AI claim extraction and company background check (`web/lib/ai.ts`) | Done | Lead |
-| Deployment | Not done | Lead |
+| Deployment | Live at https://placementshield.vercel.app | Lead |
 | Chrome extension (`extension/`) | Manifest only, not started | P2 |
 | Demo inbox, download page | Not started | P3 |
 | Dashboard, verify queue | Not started, needs Supabase | P3 |
@@ -117,7 +117,7 @@ Flags you'll see:
 ## Notes for each piece
 
 **Extension (P2)**
-- Call the API from the background service worker. `host_permissions` covers localhost; add the deployed URL once we have one.
+- Call the API from the background service worker. `host_permissions` covers localhost and the live site.
 - Show flag text with `textContent`, never `innerHTML`. Form titles come from scammers.
 - Include the privacy switch: when it's off, nothing is read or sent.
 - Build on the demo inbox first. Gmail's page is fragile.

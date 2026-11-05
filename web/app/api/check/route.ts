@@ -39,7 +39,8 @@ export async function POST(request: Request) {
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
   const claims = underAiLimit(ip) ? await extractClaims(text, sender) : null;
-  const [company, linkFlags] = await Promise.all([claims ? checkCompany(claims, sender) : null, checkLinks(text, links, claimedCompany(text) ?? claims?.company ?? undefined)]);
+  const seed = claimedCompany(text);
+  const [company, linkFlags] = await Promise.all([claims ? checkCompany(claims, sender, seed) : null, checkLinks(text, links, seed ?? claims?.company ?? undefined)]);
   const extra = [...signalFlags(claims?.signals ?? []), ...(company?.flags ?? []), ...linkFlags];
   const result = checkRules(text, sender, links, [], extra);
 

@@ -42,6 +42,9 @@ describe("formFlags", () => {
   it("flags a form that doesn't match the claimed company", () => {
     expect(codes(formFlags({ title: "KYC verification", text: "KYC verification\nName" }, "microsoft"))).toEqual(["FORM_MISMATCH"]);
   });
+  it("doesn't let a tiny company name settle the mismatch check either way", () => {
+    expect(formFlags({ title: "KYC", text: "KYC\nName" }, "EY")).toEqual([]);
+  });
   it("leaves a harmless matching form alone", () => {
     expect(formFlags({ title: "Microsoft Internship", text: "Microsoft Internship\nName\nBranch" }, "microsoft")).toEqual([]);
   });

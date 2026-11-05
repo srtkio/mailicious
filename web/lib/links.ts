@@ -73,7 +73,7 @@ export function formFlags(form: { title: string; text: string }, company?: strin
   if (SECRET.test(form.text)) add("high", "FORM_ASKS_DATA", `The form "${name}" asks for an OTP or password.`);
   if (ID_OR_BANK.test(form.text)) add("high", "FORM_ASKS_DATA", `The form "${name}" asks for ID or bank details.`);
   if (/\b(transaction id|utr|payment|registration fee)\b/i.test(form.text)) add("high", "FORM_ASKS_DATA", `The form "${name}" asks for a payment.`);
-  if (company && !form.text.toLowerCase().includes(company.toLowerCase()))
+  if (company && company.length >= 3 && !form.text.toLowerCase().includes(company.toLowerCase())) // a shorter name would match almost any form
     add("medium", "FORM_MISMATCH", `The mail says ${company[0].toUpperCase() + company.slice(1)}, but the form "${name}" never mentions it.`);
   return flags;
 }

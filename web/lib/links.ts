@@ -18,9 +18,18 @@ const parse = (raw: string, base?: URL) => {
     return null;
   }
 };
-// viewform only: a GET on formResponse can submit the form.
-const isForm = (u: URL) => u.hostname === "docs.google.com" && /^\/forms\/(u\/\d+\/)?d\/(e\/)?[\w-]+\/viewform$/.test(u.pathname);
+const isForm = (u: URL) => u.hostname === "docs.google.com" && u.pathname.startsWith("/forms/");
 const mayBeForm = (u: URL) => u.hostname === "forms.gle" || isForm(u);
+// Rewrites any form URL to its read-only page with no query: a GET on formResponse can submit the form.
+const viewform = (u: URL) => {
+  const m = u.pathname.match(/^\/forms\/(?:u\/\d+\/)?d\/(e\/)?([\w-]+)(?:\/|$)/);
+  return m ? new URL(`https://docs.google.com/forms/d/${m[1] ?? ""}${m[2]}/viewform`) : null;
+};
+// Same link with a different ?query or #hash counts once, so variants can't fill the limit.
+const linkKey = (u: URL) => {
+  const v = (isForm(u) && viewform(u)) || u;
+  return v.hostname + v.pathname;
+};
 const canFetch = (u: URL) =>
   /^https?:$/.test(u.protocol) && !u.port && !u.username && !u.password && isOn(u.hostname, FETCHABLE) && (u.hostname !== "docs.google.com" || isForm(u));
 
@@ -87,7 +96,11 @@ async function inspect(start: URL, company: string | undefined): Promise<Flag[]>
   for (let hop = 0; hop <= MAX_HOPS; hop++) {
     if (!canFetch(url)) return landedOn(url.hostname);
     url.protocol = "https:";
-    if (isForm(url)) url.search = ""; // prefilled answers are never needed to read the questions
+    if (isForm(url)) {
+      const form = viewform(url);
+      if (!form) return [notChecked(`The form link from ${from} couldn't be read.`)];
+      url = form;
+    }
     const res = await fetch(url, { redirect: "manual", signal, cache: "no-store" });
     if (res.status >= 300 && res.status < 400) {
       await res.body?.cancel();
@@ -109,9 +122,10 @@ async function inspect(start: URL, company: string | undefined): Promise<Flag[]>
 
 export async function checkLinks(text: string, links: string[] = []): Promise<Flag[]> {
   const company = claimedCompany(text);
-  const urls = [...new Set(findLinks(text, links))]
+  const parsed = findLinks(text, links)
     .map((l) => parse(/^https?:\/\//i.test(l) ? l : `https://${l}`))
     .filter((u): u is URL => !!u && canFetch(u));
+  const urls = [...new Map(parsed.map((u) => [linkKey(u), u])).values()];
   const formFirst = [...urls.filter(mayBeForm), ...urls.filter((u) => !mayBeForm(u))]; // decoy short links can't push a form past the limit
   const found = await Promise.all(formFirst.slice(0, MAX_LINKS).map((u) => inspect(u, company).catch(() => [])));
   const skipped = urls.length - MAX_LINKS;

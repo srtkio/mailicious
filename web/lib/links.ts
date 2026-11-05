@@ -1,6 +1,7 @@
 // Link/form evidence: follows short links and reads Google Forms. Server only, unlike engine.ts.
 // Only ever connects to the fixed hosts below, so a scammer's link can't reach internal addresses (SSRF)
-// or learn the mail was opened from a hit on a tracking URL. Any failure adds no flags; the rules result stands.
+// or their own tracking server. Checking a short link still counts as a click on the shortener's stats.
+// A network failure adds no flags, so the rules result stands; links skipped by a limit get LINK_NOT_CHECKED.
 import { claimedCompany, findLinks, hostOf, ID_OR_BANK, isOn, SECRET, SHORTENERS } from "./engine";
 import type { Flag } from "./types";
 
@@ -17,7 +18,9 @@ const parse = (raw: string, base?: URL) => {
     return null;
   }
 };
-const isForm = (u: URL) => u.hostname === "docs.google.com" && u.pathname.startsWith("/forms/");
+// viewform only: a GET on formResponse can submit the form.
+const isForm = (u: URL) => u.hostname === "docs.google.com" && /^\/forms\/(u\/\d+\/)?d\/(e\/)?[\w-]+\/viewform$/.test(u.pathname);
+const mayBeForm = (u: URL) => u.hostname === "forms.gle" || isForm(u);
 const canFetch = (u: URL) =>
   /^https?:$/.test(u.protocol) && !u.port && !u.username && !u.password && isOn(u.hostname, FETCHABLE) && (u.hostname !== "docs.google.com" || isForm(u));
 
@@ -66,6 +69,8 @@ export function formFlags(form: { title: string; text: string }, company?: strin
   return flags;
 }
 
+const notChecked = (text: string): Flag => ({ code: "LINK_NOT_CHECKED", level: "medium", text });
+
 async function inspect(start: URL, company: string | undefined): Promise<Flag[]> {
   const signal = AbortSignal.timeout(TIMEOUT_MS); // shared by every hop, so one link costs 5s at most
   const from = hostOf(start.href);
@@ -82,6 +87,7 @@ async function inspect(start: URL, company: string | undefined): Promise<Flag[]>
   for (let hop = 0; hop <= MAX_HOPS; hop++) {
     if (!canFetch(url)) return landedOn(url.hostname);
     url.protocol = "https:";
+    if (isForm(url)) url.search = ""; // prefilled answers are never needed to read the questions
     const res = await fetch(url, { redirect: "manual", signal, cache: "no-store" });
     if (res.status >= 300 && res.status < 400) {
       await res.body?.cancel();
@@ -98,15 +104,16 @@ async function inspect(start: URL, company: string | undefined): Promise<Flag[]>
     const form = html && parseGoogleForm(html);
     return [...landedOn(url.hostname), ...(form ? formFlags(form, company) : [])];
   }
-  return [];
+  return [notChecked(`${from} redirects too many times to follow.`)];
 }
 
 export async function checkLinks(text: string, links: string[] = []): Promise<Flag[]> {
   const company = claimedCompany(text);
   const urls = [...new Set(findLinks(text, links))]
     .map((l) => parse(/^https?:\/\//i.test(l) ? l : `https://${l}`))
-    .filter((u): u is URL => !!u && canFetch(u))
-    .slice(0, MAX_LINKS);
-  const found = await Promise.all(urls.map((u) => inspect(u, company).catch(() => [])));
-  return found.flat();
+    .filter((u): u is URL => !!u && canFetch(u));
+  const formFirst = [...urls.filter(mayBeForm), ...urls.filter((u) => !mayBeForm(u))]; // decoy short links can't push a form past the limit
+  const found = await Promise.all(formFirst.slice(0, MAX_LINKS).map((u) => inspect(u, company).catch(() => [])));
+  const skipped = urls.length - MAX_LINKS;
+  return [...found.flat(), ...(skipped > 0 ? [notChecked(`This mail has too many links: ${skipped} couldn't be checked.`)] : [])];
 }

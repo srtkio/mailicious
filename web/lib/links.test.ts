@@ -82,9 +82,9 @@ describe("checkLinks", () => {
     expect(f).not.toHaveBeenCalled();
   });
 
-  it("gives up on redirect loops", async () => {
+  it("flags redirect loops instead of passing them silently", async () => {
     const f = stub({ "https://bit.ly/a": () => redirect("https://bit.ly/a") });
-    expect(await checkLinks("https://bit.ly/a")).toEqual([]);
+    expect(codes(await checkLinks("https://bit.ly/a"))).toEqual(["LINK_NOT_CHECKED"]);
     expect(f).toHaveBeenCalledTimes(4);
   });
 
@@ -97,7 +97,27 @@ describe("checkLinks", () => {
 
   it("caps how many links one request can fetch", async () => {
     const f = stub({});
-    await checkLinks("", Array.from({ length: 20 }, (_, i) => `https://bit.ly/${i}`));
+    const flags = await checkLinks("", Array.from({ length: 20 }, (_, i) => `https://bit.ly/${i}`));
     expect(f).toHaveBeenCalledTimes(5);
+    expect(flags).toMatchObject([{ code: "LINK_NOT_CHECKED", level: "medium" }]);
+  });
+
+  it("checks forms first, so decoy short links can't hide one", async () => {
+    stub({ "https://forms.gle/bad": () => redirect(FORM), [FORM]: () => new Response(page("KYC", ["Bank account number"])) });
+    const decoys = Array.from({ length: 6 }, (_, i) => `https://bit.ly/${i}`);
+    expect(codes(await checkLinks("", [...decoys, "https://forms.gle/bad"]))).toContain("FORM_ASKS_DATA");
+  });
+
+  it("never fetches form URLs that could submit, and strips prefilled answers", async () => {
+    const submit = "https://docs.google.com/forms/d/e/abc/formResponse?entry.1=x&submit=Submit";
+    const f = stub({ [FORM]: () => new Response(page("Form", [])) });
+    await checkLinks("", [submit, `${FORM}?entry.1=x`]);
+    expect(f.mock.calls.map(([u]) => u.href)).toEqual([FORM]);
+  });
+
+  it("doesn't follow a short link into a form submission", async () => {
+    const f = stub({ "https://bit.ly/x": () => redirect("https://docs.google.com/forms/d/e/abc/formResponse?submit=Submit") });
+    await checkLinks("https://bit.ly/x");
+    expect(f).toHaveBeenCalledTimes(1);
   });
 });

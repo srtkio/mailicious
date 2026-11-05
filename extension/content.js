@@ -120,6 +120,14 @@
     setTimeout(() => host.remove(), 7000);
   }
 
+  const decodeEntities = (html) =>
+    html
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, "&");
+
   // Gmail's own "Show original" page holds the real headers. Same origin, so no extra login or permission.
   async function fetchHeaders(id, legacyId) {
     const account = location.pathname.match(/\/mail\/u\/\d+/)?.[0] ?? "/mail/u/0";
@@ -128,8 +136,8 @@
     try {
       const res = await fetch(`${location.origin}${account}/?${ik ? `ik=${ik}&` : ""}view=om&${ref}`, { credentials: "same-origin" });
       if (!res.ok) return null;
-      const page = new DOMParser().parseFromString(await res.text(), "text/html");
-      const raw = page.querySelector("#raw_message_text")?.textContent ?? "";
+      // Read as text: Gmail enforces Trusted Types, which can block DOMParser on a string.
+      const raw = decodeEntities((await res.text()).match(/<pre[^>]*id="raw_message_text"[^>]*>([\s\S]*?)<\/pre>/)?.[1] ?? "");
       const end = raw.search(/\r?\n\r?\n/);
       return /Authentication-Results|Received:/i.test(raw) && end > 0 ? raw.slice(0, Math.min(end, 60000)) : null; // headers only, never the body twice
     } catch {

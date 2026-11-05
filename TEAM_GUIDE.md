@@ -26,7 +26,7 @@ There are three pieces, all using one engine:
 | Header, raw mail and `.eml` analysis (`web/lib/headers.ts`) | Done |
 | Domain age, mail server, link reputation (`web/lib/intel.ts`) | Done |
 | Website with security report and extension download | Done, live |
-| Gmail extension (`extension/`) | Built, needs testing in real Gmail |
+| Gmail extension (`extension/`) | Works in real Gmail: card, security report and real SPF, DKIM and DMARC results confirmed. Link warning and reply warning only tested on a fake page |
 | Placement-cell dashboard and campus blocklist | Not started, needs Supabase keys |
 | Pitch deck | Not started |
 

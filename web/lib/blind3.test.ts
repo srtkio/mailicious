@@ -10,7 +10,15 @@ import type { Level } from "./types";
 const RANK: Record<Level, number> = { low: 0, medium: 1, high: 2 };
 
 // Known misses, with the cause. it.fails keeps `npm test` green and goes red once one is fixed. Never edit the mail instead.
-const KNOWN_MISSES: Record<string, string> = {};
+const KNOWN_MISSES: Record<string, string> = {
+  "b-scam-1": "low: money mule ('receive client payments in your account and transfer them') isn't a rule; 'bank name' isn't bank details",
+  "b-scam-2": "low: asking to install AnyDesk and share its address isn't a rule",
+  "b-scam-3": "low: 'paying the processing charge of ₹590': singular 'charge' with the amount after it isn't read as a fee",
+  "b-scam-4": "medium TOO_GOOD only: 'bear the visa stamping cost of Rs 38,000, payable to our agent' isn't read as a fee",
+  "b-scam-7": "medium WRONG_DOMAIN only: 'reply with one of your Google backup codes' isn't read as a secret",
+  "b-scam-11": "medium FREE_MAIL_CLAIM only: Hinglish '₹1,200 bhejna hoga' isn't read as a payment request",
+  "b-real-4": "high ASKS_FEE: 'The scheme charges no registration fee' reads the verb 'charges' as an un-negated fee",
+};
 
 function judge(m: Mail): Level {
   const headers = m.headers ? analyzeHeaders(m.headers) : null;

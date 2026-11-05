@@ -1,6 +1,6 @@
 # PlacementShield (Arthakram PS5)
 
-Read `TEAM_PLAN.md` first. Roles, the API contract and the timeline are all there.
+Read `TEAM_GUIDE.md` first: setup, roles, status and how the engine works. `TEAM_PLAN.md` is the full original plan.
 
 - `web/`: Next.js app (checker, demo inbox, dashboard, `POST /api/check`)
   - `npm install && npm run dev` → http://localhost:3000

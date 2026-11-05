@@ -73,7 +73,7 @@ export function formFlags(form: { title: string; text: string }, company?: strin
   if (SECRET.test(form.text)) add("high", "FORM_ASKS_DATA", `The form "${name}" asks for an OTP or password.`);
   if (ID_OR_BANK.test(form.text)) add("high", "FORM_ASKS_DATA", `The form "${name}" asks for ID or bank details.`);
   if (/\b(transaction id|utr|payment|registration fee)\b/i.test(form.text)) add("high", "FORM_ASKS_DATA", `The form "${name}" asks for a payment.`);
-  if (company && !new RegExp(`\\b${company}\\b`, "i").test(form.text))
+  if (company && !form.text.toLowerCase().includes(company.toLowerCase()))
     add("medium", "FORM_MISMATCH", `The mail says ${company[0].toUpperCase() + company.slice(1)}, but the form "${name}" never mentions it.`);
   return flags;
 }
@@ -120,8 +120,7 @@ async function inspect(start: URL, company: string | undefined): Promise<Flag[]>
   return [notChecked(`${from} redirects too many times to follow.`)];
 }
 
-export async function checkLinks(text: string, links: string[] = []): Promise<Flag[]> {
-  const company = claimedCompany(text);
+export async function checkLinks(text: string, links: string[] = [], company = claimedCompany(text)): Promise<Flag[]> {
   const parsed = findLinks(text, links)
     .map((l) => parse(/^https?:\/\//i.test(l) ? l : `https://${l}`))
     .filter((u): u is URL => !!u && canFetch(u));

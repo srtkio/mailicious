@@ -22,9 +22,9 @@ There are three pieces, all using one engine:
 |---|---|---|
 | Rules engine (`web/lib/engine.ts`) | Done | Lead |
 | Short-link and Google Form check (`web/lib/links.ts`) | Done | Lead |
-| `POST /api/check` | Done, rules and link checks only | Lead |
+| `POST /api/check` | Done, with rules, link checks, AI and company search | Lead |
 | Paste checker page (`web/app/page.tsx`) | Done | Lead |
-| AI claim extraction and company background check | Waiting on API keys | Lead |
+| AI claim extraction and company background check (`web/lib/ai.ts`) | Done | Lead |
 | Deployment | Not done | Lead |
 | Chrome extension (`extension/`) | Manifest only, not started | P2 |
 | Demo inbox, download page | Not started | P3 |
@@ -52,7 +52,7 @@ Open http://localhost:3000 and click "Try a fake offer". The checker works witho
 
 ## API keys
 
-The app runs without keys. They turn on the AI and web-search checks, and only the Lead needs them for now. All are free.
+The app runs without keys, using rules and link checks only. Keys turn on the AI and web-search checks. All are free. Use your own keys if you want those checks locally.
 
 | Name in `.env.local` | What it does | Get it from |
 |---|---|---|
@@ -83,9 +83,11 @@ curl -s localhost:3000/api/check -H 'content-type: application/json' \
 
 1. **Rules (`engine.ts`).** Instant and offline. Each flag sets a minimum risk level. These are the floors: AI may add risk but can never lower them.
 2. **Links (`links.ts`).** Follows short links and reads Google Forms. It flags forms asking for an OTP, ID, bank details or payment, and forms that never mention the company in the mail.
-3. **AI and search (next).** Pull out the claims, check the company online, and answer only from the search results, with sources.
+3. **AI and search (`ai.ts`).** Gemini pulls out the company and role and spots an offer that doesn't add up. Tavily finds the company's real website, and Gemini answers only from those results, with sources. If the sender isn't on that website, we flag it.
 
-The rule is that **the final level is the highest risk found**. If AI or search fails, the student still gets the rules result, marked `mode: "limited"`.
+The mail is written by the scammer, so we assume it may try to instruct the AI. The AI can only add risk, its offer judgments come from a fixed list with our own wording, and a website only counts if a real search result is on it.
+
+The rule is that **the final level is the highest risk found**. If AI or search fails, the student still gets the rules and link results, marked `mode: "limited"`. Failures are logged on the server.
 
 Flags you'll see:
 
@@ -108,6 +110,8 @@ Flags you'll see:
 | `OUTSIDE_FORM` | Medium | Uses an outside form, not a careers portal |
 | `FORM_MISMATCH` | Medium | The form never mentions the company |
 | `LINK_NOT_CHECKED` | Medium | We couldn't check a link |
+| `COMPANY_DOMAIN_MISMATCH` | Medium | Sender isn't on the website our search found for the company |
+| `REALITY_CHECK` | Medium | Pay far above market, or a job offered with no application |
 | `URGENCY` | Low | Pressure to act fast |
 
 ## Notes for each piece
@@ -120,7 +124,7 @@ Flags you'll see:
 
 **Website and dashboard (P3)**
 - Reuse the page's colours in `web/app/globals.css` so everything looks like one product.
-- The page currently says nothing pasted is saved. If the dashboard starts storing reports, update that line, and store redacted text only.
+- The page says we don't save mail and that its text goes to Google's AI. Keep that line true. If the dashboard stores reports, update it, and store redacted text only.
 
 **Pitch (P2)**
 - Don't say scammers can't tell a mail was checked. We don't touch their sites, but checking a short link counts as a click on the shortener's stats.
@@ -129,5 +133,9 @@ Flags you'll see:
 ## Limits to know
 
 - Only Google Forms are read. Microsoft Forms, Typeform and Jotform aren't, and forms that need sign-in can't be read.
-- The company list is a small hard-coded seed until Supabase is in.
+- The company list is a small hard-coded seed until Supabase is in. Other companies rely on the live search.
+- Companies with a second domain can get a wrong MEDIUM: a real `zohocorp.com` mail is flagged because search found `zoho.com`.
+- "Couldn't confirm" means we found no official site. It does not mean fake.
+- A check takes about 2 to 10 seconds, and longer when Gemini is busy.
+- `/api/check` has no rate limit yet, so a public site could drain the free quotas.
 - Rules are deliberately cautious: they'd rather flag a real mail than miss a scam.

@@ -106,7 +106,7 @@ export default function Home() {
 
         <section aria-live="polite" className="lg:pt-8">
           {error && <p className="font-bold text-high">{error}</p>}
-          {!result && !error && <p className="hidden text-muted lg:block">Your result shows here. It takes a few seconds, and nothing you paste is saved.</p>}
+          {!result && !error && <p className="hidden text-muted lg:block">Your result shows here. It takes a few seconds. We don&apos;t save your mail, but its text goes to Google&apos;s AI to be read, so remove anything private first.</p>}
           {result && <Verdict result={result} />}
         </section>
       </div>
@@ -152,7 +152,7 @@ function Verdict({ result }: { result: CheckResult }) {
               </a>
             </p>
           ))}
-          {result.mode === "limited" && <p>This was a quick check of the text, sender and links. It didn&apos;t look the company up online.</p>}
+          {result.mode === "limited" && <p>This was a quick check of the text, sender and links. It couldn&apos;t look the company up online this time.</p>}
         </div>
       </details>
     </div>

@@ -1,3 +1,4 @@
+import { checkCompany, extractClaims, signalFlags } from "@/lib/ai";
 import { checkRules } from "@/lib/engine";
 import { checkLinks } from "@/lib/links";
 import type { CheckRequest } from "@/lib/types";
@@ -5,7 +6,7 @@ import type { CheckRequest } from "@/lib/types";
 const MAX_TEXT = 20_000;
 const MAX_LINKS = 20;
 
-// shortcut: rules only (mode "limited"). Add the LLM and web search here once the keys are in .env.local.
+// shortcut: no rate limit, so a public deployment can drain the free Gemini and Tavily quotas; add one if that happens.
 export async function POST(request: Request) {
   let body: CheckRequest;
   try {
@@ -21,5 +22,15 @@ export async function POST(request: Request) {
   if (!Array.isArray(links) || links.length > MAX_LINKS || links.some((l) => typeof l !== "string" || l.length > 2000))
     return Response.json({ error: `links must be up to ${MAX_LINKS} strings` }, { status: 400 });
 
-  return Response.json(checkRules(text, sender, links, [], await checkLinks(text, links)));
+  const claims = await extractClaims(text, sender);
+  const [company, linkFlags] = await Promise.all([claims ? checkCompany(claims, sender) : null, checkLinks(text, links, claims?.company ?? undefined)]);
+  const extra = [...signalFlags(claims?.signals ?? []), ...(company?.flags ?? []), ...linkFlags];
+  const result = checkRules(text, sender, links, [], extra);
+
+  return Response.json({
+    ...result,
+    evidence: { ...result.evidence, company: company?.summary ?? null },
+    sources: company?.sources ?? [],
+    mode: company ? "full" : "limited",
+  });
 }

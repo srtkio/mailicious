@@ -162,7 +162,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
     intent: intentOf(unique, text, !!formHost, hosts.length > 0),
     flags: sorted,
     evidence: {
-      sender: senderEvidence ?? unique.find((f) => ["FREE_MAIL_CLAIM", "LOOKALIKE_DOMAIN", "WRONG_DOMAIN", "BLOCKED_SENDER", "HACKED_ACCOUNT"].includes(f.code))?.text ?? null,
+      sender: senderEvidence ?? unique.find((f) => ["FREE_MAIL_CLAIM", "LOOKALIKE_DOMAIN", "WRONG_DOMAIN", "COMPANY_DOMAIN_MISMATCH", "BLOCKED_SENDER", "HACKED_ACCOUNT"].includes(f.code))?.text ?? null,
       company: null,
       link: ["FORM_ASKS_DATA", "FORM_MISMATCH", "RAW_IP_LINK", "SHORT_LINK_TARGET", "SHORT_LINK", "LINK_NOT_CHECKED", "LINK_MISMATCH", "OUTSIDE_FORM"].map((c) => unique.find((f) => f.code === c)?.text).find(Boolean) ?? null,
     },

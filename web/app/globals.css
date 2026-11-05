@@ -1,26 +1,52 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-paper: #eaf0e8;
+  --color-sheet: #f7faf5;
+  --color-rule: #c9d8ce;
+  --color-ink: #16233f;
+  --color-muted: #4a5870;
+  --color-pad: #2a2f8f;
+  --color-high: #b3122a;
+  --color-medium: #8a5200;
+  --color-low: #1c6b48;
+  --font-display: var(--font-bricolage);
+  --font-sans: var(--font-atkinson);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-pad);
+  outline-offset: 2px;
+}
+
+/* Ledger lines stay under the text while it scrolls, so they must match the 2rem line height. */
+.ledger {
+  line-height: 2rem;
+  background-color: var(--color-sheet);
+  background-image: repeating-linear-gradient(transparent 0 calc(2rem - 1px), var(--color-rule) calc(2rem - 1px) 2rem);
+  background-attachment: local;
+}
+
+.stamp {
+  transform: rotate(-3deg);
+  animation: stamp 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@keyframes stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-3deg) scale(1.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stamp {
+    animation: none;
+  }
 }

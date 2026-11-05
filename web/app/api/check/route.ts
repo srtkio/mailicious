@@ -6,7 +6,22 @@ import type { CheckRequest } from "@/lib/types";
 const MAX_TEXT = 20_000;
 const MAX_LINKS = 20;
 
-// shortcut: no rate limit, so a public deployment can drain the free Gemini and Tavily quotas; add one if that happens.
+const AI_PER_MINUTE = 20;
+const aiCalls = new Map<string, { count: number; start: number }>();
+
+// Over the limit means rules and link checks only, never an error: a whole campus can share one IP.
+// shortcut: counts per server instance, so it slows abuse rather than stopping it; move to Supabase or Redis if quotas drain.
+function underAiLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = aiCalls.get(ip);
+  if (!entry || now - entry.start > 60_000) {
+    if (aiCalls.size > 5000) aiCalls.clear();
+    aiCalls.set(ip, { count: 1, start: now });
+    return true;
+  }
+  return ++entry.count <= AI_PER_MINUTE;
+}
+
 export async function POST(request: Request) {
   let body: CheckRequest;
   try {
@@ -22,7 +37,8 @@ export async function POST(request: Request) {
   if (!Array.isArray(links) || links.length > MAX_LINKS || links.some((l) => typeof l !== "string" || l.length > 2000))
     return Response.json({ error: `links must be up to ${MAX_LINKS} strings` }, { status: 400 });
 
-  const claims = await extractClaims(text, sender);
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
+  const claims = underAiLimit(ip) ? await extractClaims(text, sender) : null;
   const [company, linkFlags] = await Promise.all([claims ? checkCompany(claims, sender) : null, checkLinks(text, links, claimedCompany(text) ?? claims?.company ?? undefined)]);
   const extra = [...signalFlags(claims?.signals ?? []), ...(company?.flags ?? []), ...linkFlags];
   const result = checkRules(text, sender, links, [], extra);

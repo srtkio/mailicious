@@ -138,5 +138,5 @@ Flags you'll see:
 - "Couldn't confirm" means we found no official site. It does not mean fake.
 - A confirmed company only means it has its own website. A scammer can build a site for a made-up company, so never say "confirmed" means safe.
 - A check takes about 2 to 10 seconds, and longer when Gemini is busy.
-- `/api/check` has no rate limit yet, so a public site could drain the free quotas.
+- After 20 AI checks a minute from one IP address, results drop to rules and link checks only. The count is per server instance, so it slows abuse but won't fully stop it.
 - Rules are deliberately cautious: they'd rather flag a real mail than miss a scam.

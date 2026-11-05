@@ -1,6 +1,6 @@
-# PlacementShield team guide
+# PlacementShield guide
 
-Start here. This is the one page for what we're building, how to run it, who does what and what's left. If something changes, update this file in the same commit.
+Start here. This is the one page for what we're building, how to run it and what's left. If something changes, update this file in the same commit.
 
 **Live site: https://placementshield.vercel.app.** Submission is due 6 Nov. `TEAM_PLAN.md` has the full original plan and the pitch answers.
 
@@ -18,21 +18,17 @@ There are three pieces, all using one engine:
 
 ## Status
 
-| Piece | State | Owner |
-|---|---|---|
-| Rules engine (`web/lib/engine.ts`) | Done | Lead |
-| Short-link and Google Form check (`web/lib/links.ts`) | Done | Lead |
-| `POST /api/check` | Done, with rules, link checks, AI and company search | Lead |
-| Paste checker page (`web/app/page.tsx`) | Done | Lead |
-| AI claim extraction and company background check (`web/lib/ai.ts`) | Done | Lead |
-| Deployment | Live at https://placementshield.vercel.app | Lead |
-| Chrome extension (`extension/`) | Manifest only, not started | P2 |
-| Demo inbox, download page | Not started | P3 |
-| Dashboard, verify queue | Not started, needs Supabase | P3 |
-| About 15 fictional sample mails | Not started | P3 |
-| Pitch deck, business side | Not started | P2, from about hour 14 |
-
-P2 and P3 are not assigned to names yet. Akash and Dhruv: pick one each and put your name in the table.
+| Piece | State |
+|---|---|
+| Rules engine (`web/lib/engine.ts`) | Done |
+| Short-link and Google Form check (`web/lib/links.ts`) | Done |
+| AI and company check (`web/lib/ai.ts`) | Done |
+| Header, raw mail and `.eml` analysis (`web/lib/headers.ts`) | Done |
+| Domain age, mail server, link reputation (`web/lib/intel.ts`) | Done |
+| Website with security report and extension download | Done, live |
+| Gmail extension (`extension/`) | Built, needs testing in real Gmail |
+| Placement-cell dashboard and campus blocklist | Not started, needs Supabase keys |
+| Pitch deck | Not started |
 
 ## Run it
 
@@ -58,19 +54,26 @@ The app runs without keys, using rules and link checks only. Keys turn on the AI
 |---|---|---|
 | `GEMINI_API_KEY` | Reads the mail, writes the explanation | https://aistudio.google.com/app/apikey |
 | `TAVILY_API_KEY` | Company background search | https://app.tavily.com/home |
+| `SAFE_BROWSING_API_KEY` | Optional: Google's blocklist of dangerous links | https://console.cloud.google.com/apis/library/safebrowsing.googleapis.com |
+| `VIRUSTOTAL_API_KEY` | Optional: 70+ security vendors' verdicts | https://www.virustotal.com/gui/my-apikey |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Dashboard data. Found under Project Settings, API. | https://supabase.com/dashboard/projects |
 
 Keys go in `web/.env.local`: run `cp .env.example .env.local` in `web/`, then paste each value straight after its `=`, with no quotes or spaces. Finder hides this file; press Cmd+Shift+. to show it.
 
 **This repo is public. Never commit a key or paste one in an issue or chat.** Git ignores `.env.local`, so keep keys only there. If a key leaks, delete it on the provider's site and make a new one.
 
-## How we work
+## Extension
 
-- Make a branch for your piece (`extension-card`, `dashboard`) and open a pull request. The Lead reviews and merges.
-- Don't change `web/lib/types.ts` without telling everyone. It's the contract all three pieces build on.
-- Stay inside your own folders where you can, so we don't overwrite each other.
+It works inside Gmail with no Google sign-in. A content script reads the open mail and fetches Gmail's own Show original page for the real headers, so it needs no OAuth and no MCP server.
+
+After changing anything in `extension/`, run `npm run pack:extension` in `web/` to rebuild the download, then deploy.
+
+Deploying isn't automatic: run `vercel deploy --prod --yes` in `web/`.
+
+## Rules
+
 - Every sample mail must be fictional. This project is defensive only; building or sending real phishing means disqualification.
-- If you use Claude Code, `CLAUDE.md` points it at this guide.
+- Mail text comes from scammers. Show it with `textContent`, never `innerHTML`, and never let AI output lower a rule's flag.
 
 ## How the engine works
 
@@ -112,26 +115,27 @@ Flags you'll see:
 | `LINK_NOT_CHECKED` | Medium | We couldn't check a link |
 | `COMPANY_DOMAIN_MISMATCH` | Medium | Sender isn't on the website our search found for the company |
 | `REALITY_CHECK` | Medium | Pay far above market, or a job offered with no application |
+| `AUTH_FAIL` | High | Failed SPF, DKIM or DMARC: not really from that domain |
+| `HIDDEN_LINK` | High | Link shows one site but goes to another |
+| `HOMOGRAPH_LINK` | High | Address uses disguised characters |
+| `LOOKALIKE_LINK` | High | Link imitates a company's site |
+| `DANGEROUS_ATTACHMENT` | High or medium | A program or web page posing as a document |
+| `KNOWN_MALICIOUS` | High | Listed by Safe Browsing or VirusTotal |
+| `NEW_DOMAIN` | High or medium | Domain registered under 30 or 180 days ago |
+| `AUTH_WEAK` | Medium | One sender check failed |
+| `REPLY_TO_MISMATCH` | Medium | Replies go to a different domain |
+| `NO_MAIL_SERVER` | Medium | Sender's domain can't receive mail |
 | `URGENCY` | Low | Pressure to act fast |
 
-## Notes for each piece
+## Pitch notes
 
-**Extension (P2)**
-- Call the API from the background service worker. `host_permissions` covers localhost and the live site.
-- Show flag text with `textContent`, never `innerHTML`. Form titles come from scammers.
-- Include the privacy switch: when it's off, nothing is read or sent.
-- Build on the demo inbox first. Gmail's page is fragile.
-
-**Website and dashboard (P3)**
-- Reuse the page's colours in `web/app/globals.css` so everything looks like one product.
-- The page says we don't save mail and that its text goes to Google's AI. Keep that line true. If the dashboard stores reports, update it, and store redacted text only.
-
-**Pitch (P2)**
 - Don't say scammers can't tell a mail was checked. We don't touch their sites, but checking a short link counts as a click on the shortener's stats.
-- We can't see real mail headers from pasted text, so we don't claim SPF or DKIM checks.
+- Sender checks need real headers: the extension and Show original or `.eml` have them, plain pasted text doesn't.
+- The page says we don't save mail and that its text goes to Google's AI. Keep that true.
 
 ## Limits to know
 
+- The extension uses Gmail's page structure, which Google can change without notice. If a selector breaks, it goes quiet and doesn't warn.
 - Only Google Forms are read. Microsoft Forms, Typeform and Jotform aren't, and forms that need sign-in can't be read.
 - The company list is a small hard-coded seed until Supabase is in. Other companies rely on the live search.
 - Companies with a second domain can get a wrong MEDIUM: a real `zohocorp.com` mail is flagged because search found `zoho.com`.

@@ -1,4 +1,4 @@
-// Frozen contract for POST /api/check. Change only with the whole team's agreement.
+// Contract for POST /api/check, shared by the website and the extension.
 
 export type Level = "low" | "medium" | "high";
 
@@ -18,10 +18,22 @@ export type Flag = {
   text: string; // plain-English reason shown to the student
 };
 
+export type LinkPair = { text: string; href: string }; // what a link shows vs where it goes
+
 export type CheckRequest = {
-  text: string;
+  text?: string;
   sender?: string;
   links?: string[];
+  raw?: string; // a full original message (.eml or Gmail "Show original"); replaces text when given
+  headers?: string; // just the message headers, as the extension sends them
+  linkPairs?: LinkPair[];
+  attachments?: string[];
+};
+
+export type SecurityCheck = {
+  label: string; // "Sender authentication"
+  status: "pass" | "warn" | "fail" | "skip";
+  detail: string; // one plain sentence
 };
 
 export type CheckResult = {
@@ -36,5 +48,7 @@ export type CheckResult = {
     link: string | null; // link/form check summary
   };
   sources: { title: string; url: string }[];
+  attack: string | null; // the kind of attack, e.g. "Advance-fee scam"
+  checks: SecurityCheck[]; // the security report
   mode: "full" | "limited"; // limited = rules only (no AI/search)
 };

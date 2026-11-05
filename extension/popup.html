@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 280px; margin: 0; padding: 14px; font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #16233f; background: #eaf0e8; }
+  h1 { font-size: 16px; margin: 0 0 10px; }
+  label { display: flex; gap: 8px; align-items: center; font-weight: 700; }
+  p { margin: 10px 0 0; color: #4a5870; }
+  strong { color: #16233f; }
+  a { color: #2a2f8f; }
+</style>
+</head>
+<body>
+  <h1>PlacementShield</h1>
+  <label><input type="checkbox" id="enabled"> Check my placement mails</label>
+  <p><strong id="checked">0</strong> mails checked, <strong id="caught">0</strong> flagged.</p>
+  <p id="note"></p>
+  <p>Only placement-looking mails you open are sent for checking. Nothing is saved, but the text goes to Google's AI.</p>
+  <p><a href="https://placementshield.vercel.app" target="_blank" rel="noopener">Open the website</a></p>
+  <script src="popup.js"></script>
+</body>
+</html>

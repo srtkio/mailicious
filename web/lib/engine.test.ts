@@ -1,6 +1,6 @@
 // Fixture checks for the rules engine. All messages and addresses are fictional.
 import { describe, expect, it } from "vitest";
-import { checkRules } from "./engine";
+import { checkRules, deepRules } from "./engine";
 
 const cases: { name: string; text: string; sender?: string; blocked?: string[]; level: string; code?: string }[] = [
   { name: "asks for OTP", text: "Congratulations on your selection. Please share the OTP sent to your phone to confirm.", level: "high", code: "ASKS_SECRET" },
@@ -46,5 +46,33 @@ describe("checkRules", () => {
     const r = checkRules("Microsoft internship: share the OTP you received to verify.", "careers@microsoft.com");
     expect(r.level).toBe("high");
     expect(r.intent).toBe("share_otp");
+  });
+});
+
+describe("deepRules", () => {
+  const codes = (input: Parameters<typeof deepRules>[0]) => deepRules(input).map((f) => f.code);
+  it("catches a link disguised as another site", () => {
+    expect(codes({ linkPairs: [{ text: "careers.microsoft.com", href: "https://evil.example/login" }] })).toContain("HIDDEN_LINK");
+    expect(codes({ linkPairs: [{ text: "Click here", href: "https://evil.example/" }] })).not.toContain("HIDDEN_LINK");
+    expect(codes({ linkPairs: [{ text: "microsoft.com", href: "https://careers.microsoft.com/" }] })).toEqual([]);
+  });
+  it("catches look-alike and disguised addresses", () => {
+    expect(codes({ links: ["https://micros0ft-careers.example/"] })).toContain("LOOKALIKE_LINK");
+    expect(codes({ links: ["https://rnicrosoft.example/"] })).toContain("LOOKALIKE_LINK");
+    expect(codes({ links: ["https://xn--microsft-d1a.example/"] })).toContain("HOMOGRAPH_LINK");
+    expect(codes({ links: ["https://careers.microsoft.com/"] })).toEqual([]);
+  });
+  it("catches a sender imitating a company the mail never names", () => {
+    expect(codes({ sender: "hr@infosys-hiring.example" })).toContain("LOOKALIKE_DOMAIN");
+    expect(codes({ sender: "hr@infosys.com" })).toEqual([]);
+  });
+  it("catches dangerous attachments", () => {
+    expect(deepRules({ attachments: ["offer.pdf.exe"] })[0]).toMatchObject({ code: "DANGEROUS_ATTACHMENT", level: "high" });
+    expect(deepRules({ attachments: ["login.html"] })[0].level).toBe("medium");
+    expect(deepRules({ attachments: ["offer.pdf"] })).toEqual([]);
+  });
+  it("names the attack on the result", () => {
+    expect(checkRules("Pay the registration fee of Rs 500.").attack).toBe("Advance-fee scam");
+    expect(checkRules("Hello there.").attack).toBeNull();
   });
 });

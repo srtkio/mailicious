@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { CheckResult, Level } from "@/lib/types";
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from "react";
+import type { CheckResult, Level, SecurityCheck } from "@/lib/types";
 
 const VERDICT: Record<Level, { stamp: string; color: string }> = {
   high: { stamp: "Likely fake", color: "text-high border-high" },
@@ -9,7 +9,16 @@ const VERDICT: Record<Level, { stamp: string; color: string }> = {
   low: { stamp: "No red flags", color: "text-low border-low" },
 };
 
-// Fictional mails for trying the checker. Neither has a link, so a demo click fetches nothing.
+const MARK: Record<SecurityCheck["status"], { sign: string; color: string; said: string }> = {
+  pass: { sign: "✓", color: "text-low", said: "Passed" },
+  warn: { sign: "!", color: "text-medium", said: "Warning" },
+  fail: { sign: "✕", color: "text-high", said: "Failed" },
+  skip: { sign: "–", color: "text-muted", said: "Not checked" },
+};
+
+const RAW_MAIL = /^(Delivered-To|Received|Return-Path|Authentication-Results|MIME-Version|ARC-Seal|X-[\w-]+):/i;
+
+// Fictional mails for trying the checker. None has a real link, so a demo click fetches nothing.
 const SAMPLES = [
   {
     label: "Try a fake offer",
@@ -17,10 +26,41 @@ const SAMPLES = [
     text: "Congratulations! You have been selected for the Microsoft summer internship. No interview is needed.\n\nPay the refundable registration fee of Rs 1500 and share the OTP sent to your phone within 2 hours to confirm your seat.",
   },
   {
+    label: "Try a spoofed sender",
+    sender: "",
+    text: `Delivered-To: student@rishihood.edu.in
+Authentication-Results: mx.google.com;
+       spf=fail smtp.mailfrom=hr@microsoft.com;
+       dkim=none;
+       dmarc=fail header.from=microsoft.com
+From: Microsoft Careers <hr@microsoft.com>
+Reply-To: <collect.offers@gmail.com>
+Subject: Your internship offer
+Content-Type: text/plain
+
+Your Microsoft internship offer is ready. Reply with your details to accept it.`,
+  },
+  {
     label: "Try a normal invite",
     sender: "careers@infosys.com",
     text: "Your Infosys interview is on Monday at 10am. Stipend: pay of ₹20,000 per month.\n\nApply for your slot on the careers portal. Never share your OTP or password with anyone.",
   },
+];
+
+const EXTENSION_POINTS = [
+  ["Checks mail as you open it", "No pasting. Open a placement mail in Gmail and the check runs by itself."],
+  ["Quiet until it matters", "Normal mails get a small tick. You only see a warning when something is wrong."],
+  ["Stops the risky click", "Links in a fake mail ask you to confirm before they open."],
+  ["Catches what you're about to send", "Warns you if you type an OTP, Aadhaar, PAN or card number into a reply."],
+  ["Sees real sender checks", "Reads the same SPF, DKIM and DMARC results Gmail recorded for the mail."],
+  ["Marks risky mail in your inbox", "A dot appears beside suspicious placement mails before you open them."],
+];
+
+const INSTALL_STEPS = [
+  "Download the zip and unzip it.",
+  "Open chrome://extensions, or brave://extensions in Brave, and turn on Developer mode.",
+  "Click Load unpacked and choose the unzipped folder.",
+  "Open Gmail and refresh the page.",
 ];
 
 export default function Home() {
@@ -46,7 +86,7 @@ export default function Home() {
       const res = await fetch("/api/check", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text, sender }),
+        body: JSON.stringify(RAW_MAIL.test(text.trimStart()) ? { raw: text.trimStart(), sender } : { text, sender }),
       });
       const data = await res.json();
       if (res.ok) setResult(data);
@@ -58,77 +98,144 @@ export default function Home() {
     }
   }
 
+  async function openFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) edit(await file.text(), "");
+  }
+
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8 sm:py-14">
-      <h1 className="max-w-2xl font-display text-4xl font-bold leading-tight sm:text-5xl">Got a placement mail that feels off?</h1>
-      <p className="mt-3 max-w-xl text-lg text-muted">Paste it here before you reply, pay or click.</p>
+    <>
+      <header className="border-b border-rule">
+        <nav aria-label="Main" className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-4 sm:px-8">
+          <span className="font-display text-xl font-extrabold">PlacementShield</span>
+          <span className="flex gap-5">
+            <a href="#check" className="text-pad underline underline-offset-4">
+              Check a mail
+            </a>
+            <a href="#extension" className="text-pad underline underline-offset-4">
+              Get the extension
+            </a>
+          </span>
+        </nav>
+      </header>
 
-      <div className="mt-8 grid items-start gap-8 lg:grid-cols-[1fr_22rem]">
-        <form onSubmit={check}>
-          <label htmlFor="mail" className="font-bold">
-            The mail
-          </label>
-          <textarea
-            id="mail"
-            required
-            maxLength={20000}
-            rows={10}
-            value={text}
-            onChange={(e) => edit(e.target.value, sender)}
-            className="ledger mt-2 block w-full resize-y border border-rule px-4 text-base"
-          />
-
-          <label htmlFor="sender" className="mt-5 block font-bold">
-            Sender&apos;s address, if you have it
-          </label>
-          <input
-            id="sender"
-            type="text"
-            inputMode="email"
-            autoComplete="off"
-            maxLength={320}
-            value={sender}
-            onChange={(e) => edit(text, e.target.value)}
-            className="mt-2 block w-full border border-rule bg-sheet px-4 py-2 text-base"
-          />
-
-          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
-            <button type="submit" disabled={checking} className="bg-pad px-6 py-3 font-bold text-white hover:bg-ink disabled:opacity-60">
-              {checking ? "Checking…" : "Check this mail"}
-            </button>
-            {SAMPLES.map((s) => (
-              <button key={s.label} type="button" onClick={() => edit(s.text, s.sender)} className="text-pad underline underline-offset-4 hover:text-ink">
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </form>
-
-        <section aria-live="polite" className="lg:pt-8">
-          {error && <p className="font-bold text-high">{error}</p>}
-          {!result && !error && <p className="hidden text-muted lg:block">Your result shows here. It takes a few seconds. We don&apos;t save your mail, but its text goes to Google&apos;s AI to be read, so remove anything private first.</p>}
-          {result && <Verdict result={result} />}
+      <main className="mx-auto w-full max-w-5xl px-4 sm:px-8">
+        <section className="py-10 sm:py-14">
+          <h1 className="max-w-3xl font-display text-4xl font-bold leading-tight sm:text-5xl">Catch fake placement mails before you reply, pay or click.</h1>
+          <p className="mt-4 max-w-2xl text-lg text-muted">
+            PlacementShield checks who really sent a mail, where its links go and what it wants from you, then tells you what to do in five seconds.
+          </p>
+          <a href="#extension" className="mt-6 inline-block bg-pad px-6 py-3 font-bold text-white hover:bg-ink">
+            Add it to Gmail
+          </a>
         </section>
-      </div>
-    </main>
+
+        <section id="check" className="scroll-mt-4 border-t border-rule py-10">
+          <h2 className="font-display text-2xl font-bold">Check a mail now</h2>
+          <div className="mt-6 grid items-start gap-8 lg:grid-cols-[1fr_24rem]">
+            <form onSubmit={check}>
+              <label htmlFor="mail" className="font-bold">
+                The mail
+              </label>
+              <p id="mail-hint" className="mt-1 text-muted">
+                Paste the text. For the full sender checks, paste Gmail&apos;s Show original, or open a saved .eml file.
+              </p>
+              <textarea
+                id="mail"
+                required
+                aria-describedby="mail-hint"
+                maxLength={1000000}
+                rows={10}
+                value={text}
+                onChange={(e) => edit(e.target.value, sender)}
+                className="ledger mt-2 block w-full resize-y border border-rule px-4 text-base"
+              />
+              <label htmlFor="file" className="mt-4 block font-bold">
+                Or open a mail file
+              </label>
+              <input id="file" type="file" accept=".eml,.txt,message/rfc822" onChange={openFile} className="mt-2 block w-full text-muted" />
+
+              <label htmlFor="sender" className="mt-5 block font-bold">
+                Sender&apos;s address, if you have it
+              </label>
+              <input
+                id="sender"
+                type="text"
+                inputMode="email"
+                autoComplete="off"
+                maxLength={320}
+                value={sender}
+                onChange={(e) => edit(text, e.target.value)}
+                className="mt-2 block w-full border border-rule bg-sheet px-4 py-2 text-base"
+              />
+
+              <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
+                <button type="submit" disabled={checking} className="bg-pad px-6 py-3 font-bold text-white hover:bg-ink disabled:opacity-60">
+                  {checking ? "Checking…" : "Check this mail"}
+                </button>
+                {SAMPLES.map((s) => (
+                  <button key={s.label} type="button" onClick={() => edit(s.text, s.sender)} className="text-pad underline underline-offset-4 hover:text-ink">
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </form>
+
+            <section aria-live="polite" aria-label="Result">
+              {error && <p className="font-bold text-high">{error}</p>}
+              {!result && !error && (
+                <p className="hidden text-muted lg:block">Your result shows here. We don&apos;t save your mail, but its text goes to Google&apos;s AI to be read, so remove anything private first.</p>
+              )}
+              {result && <Verdict result={result} />}
+            </section>
+          </div>
+        </section>
+
+        <section id="extension" className="scroll-mt-4 border-t border-rule py-10">
+          <h2 className="font-display text-2xl font-bold">Stop copying and pasting</h2>
+          <p className="mt-2 max-w-2xl text-lg text-muted">The extension works inside Gmail on Chrome, Brave and Edge. There&apos;s no account or Google sign-in.</p>
+          <dl className="mt-6 grid gap-x-8 gap-y-5 sm:grid-cols-2">
+            {EXTENSION_POINTS.map(([title, body]) => (
+              <div key={title}>
+                <dt className="font-bold">{title}</dt>
+                <dd className="text-muted">{body}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <a href="/placementshield-extension.zip" download className="mt-8 inline-block bg-pad px-6 py-3 font-bold text-white hover:bg-ink">
+            Download the extension
+          </a>
+          <ol className="mt-6 max-w-2xl list-decimal space-y-1 pl-5">
+            {INSTALL_STEPS.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          <p className="mt-4 max-w-2xl text-muted">
+            A switch in the extension turns it off at any time. Only placement-looking mails you open are checked, and other mail never leaves your browser.
+          </p>
+        </section>
+      </main>
+    </>
   );
 }
 
 function Verdict({ result }: { result: CheckResult }) {
   const { stamp, color } = VERDICT[result.level];
-  const evidence = [result.evidence.sender, result.evidence.company, result.evidence.link].filter((e): e is string => !!e);
+  const evidence = [result.evidence.company].filter((e): e is string => !!e);
+  const more = result.flags.map((f) => f.text).filter((t) => !result.reasons.includes(t));
   const top = useRef<HTMLDivElement>(null);
   // On a phone the verdict lands below the fold. Braces matter: scrollIntoView's return value must not reach React as a cleanup.
   useEffect(() => {
     top.current?.scrollIntoView({ block: "nearest" });
   }, []);
-  const more = result.flags.map((f) => f.text).filter((t) => !result.reasons.includes(t) && !evidence.includes(t));
 
   return (
     <div ref={top} className="pt-3">
       <p className={`stamp inline-block border-4 px-4 py-2 font-display text-3xl font-extrabold ${color}`}>{stamp}</p>
+      {result.attack && <p className="mt-4 font-bold">Attack type: {result.attack}</p>}
 
-      <ul className="mt-6 space-y-2">
+      <ul className="mt-4 space-y-2">
         {result.reasons.map((r) => (
           <li key={r}>{r}</li>
         ))}
@@ -136,7 +243,22 @@ function Verdict({ result }: { result: CheckResult }) {
 
       <p className="mt-5 font-bold">{result.nextStep}</p>
 
-      <details className="mt-6 border-t border-rule pt-3">
+      <h3 className="mt-6 border-t border-rule pt-4 font-display text-lg font-bold">Security report</h3>
+      <ul className="mt-2 space-y-2">
+        {result.checks.map((c) => (
+          <li key={c.label} className="grid grid-cols-[1.25rem_1fr] gap-1">
+            <span aria-hidden className={`font-bold ${MARK[c.status].color}`}>
+              {MARK[c.status].sign}
+            </span>
+            <span>
+              <span className="font-bold">{c.label}</span>
+              <span className="sr-only"> ({MARK[c.status].said})</span>: <span className="text-muted">{c.detail}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <details className="mt-5 border-t border-rule pt-3">
         <summary className="cursor-pointer text-pad underline underline-offset-4">Why?</summary>
         <div className="mt-3 space-y-2 text-muted">
           {evidence.map((e) => (

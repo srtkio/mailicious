@@ -1,6 +1,6 @@
 // Rules engine: pure, no network, no dependencies, so the extension can reuse it as-is.
 // These flags are hard floors: AI/search steps may add risk, never remove it.
-import type { CheckResult, Flag, Intent, Level } from "./types";
+import type { CheckResult, Flag, Intent, Level, LinkPair } from "./types";
 
 export const COLLEGE_DOMAIN = "rishihood.edu.in";
 export const PLACEMENT_SENDERS = ["placement@rishihood.edu.in"];
@@ -33,6 +33,13 @@ const NEXT_STEP: Record<string, string> = {
   LOOKALIKE_DOMAIN: "Don't reply or click. Find the company's careers page yourself and apply there.",
   RAW_IP_LINK: "Don't open the link. Verify the offer with the placement cell.",
   FORM_ASKS_DATA: "Don't fill this form. Report it to the placement cell.",
+  AUTH_FAIL: "This mail failed the checks that prove who sent it. Don't reply or click anything.",
+  HIDDEN_LINK: "Don't click it. The link is disguised as a different website.",
+  HOMOGRAPH_LINK: "Don't open it. The address uses look-alike characters to imitate a real site.",
+  LOOKALIKE_LINK: "Don't open it. Find the company's careers page yourself and apply there.",
+  DANGEROUS_ATTACHMENT: "Don't open the attachment. It can install malware on your device.",
+  KNOWN_MALICIOUS: "Don't open the link. Security services already list it as dangerous.",
+  NEW_DOMAIN: "Be careful: real recruiters don't use websites this new. Verify with the placement cell.",
   HACKED_ACCOUNT: "Call or meet the sender in person to confirm they sent this, before you open the link.",
 };
 const DEFAULT_NEXT = "Don't act on this mail yet. Verify it with the placement cell or the company's official careers page.";
@@ -82,6 +89,56 @@ function asks(text: string, what: RegExp, verb?: RegExp): boolean {
     const verbs = all(s, verb);
     return verbs.some((m) => !negated(s, m, VERB_NEGATED)) && objs.some((m) => !negated(s, m, OBJECT_NEGATED));
   });
+}
+
+function editDistance(a: string, b: string): number {
+  let row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    row = next;
+  }
+  return row[b.length];
+}
+
+// "microsft.com" or "rnicrosoft.com" imitating a seed company, whether or not the mail names it.
+function imitatedCompany(host: string): string | undefined {
+  const label = host.split(".").slice(-2)[0].replace(/rn/g, "m");
+  return Object.keys(COMPANIES).find((c) => {
+    if (isOn(host, COMPANIES[c])) return false;
+    return (c.length >= 5 && editDistance(unswap(label), c) <= 2) || (c.length >= 5 && unswap(host.split(".").slice(0, -1).join("")).includes(c));
+  });
+}
+
+const looksLikeDomain = (s: string) => /^(https?:\/\/)?(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/i.test(s.trim());
+const DANGEROUS_FILE = /\.(exe|scr|bat|cmd|com|js|jse|vbs|ps1|apk|msi|jar|iso|img|lnk|hta)$/i;
+
+// Attacks visible only in links and attachments. Pure, like checkRules.
+export function deepRules({ sender = "", links = [], linkPairs = [], attachments = [] }: { sender?: string; links?: string[]; linkPairs?: LinkPair[]; attachments?: string[] }): Flag[] {
+  const flags: Flag[] = [];
+  const add = (code: string, level: Level, text: string) => flags.push({ code, level, text });
+
+  for (const { text, href } of linkPairs) {
+    const shown = looksLikeDomain(text) ? hostOf(text.trim()) : null;
+    const real = hostOf(href);
+    if (shown && real && !isOn(real, [shown]) && !isOn(shown, [real])) add("HIDDEN_LINK", "high", `A link shows ${shown} but really goes to ${real}.`);
+  }
+  const hosts = [...new Set([...links, ...linkPairs.map((l) => l.href)].map(hostOf).filter((h): h is string => !!h))];
+  for (const h of hosts) {
+    const name = imitatedCompany(h);
+    if (h.split(".").some((p) => p.startsWith("xn--"))) add("HOMOGRAPH_LINK", "high", `A link uses disguised characters in its address (${h}).`);
+    else if (name) add("LOOKALIKE_LINK", "high", `The link ${h} imitates ${name[0].toUpperCase() + name.slice(1)}'s website.`);
+  }
+  const senderHost = sender.includes("@") ? sender.trim().toLowerCase().split("@").pop()! : "";
+  const imitated = senderHost && imitatedCompany(senderHost);
+  if (imitated) add("LOOKALIKE_DOMAIN", "high", `${senderHost} imitates ${imitated[0].toUpperCase() + imitated.slice(1)}'s domain.`);
+  if (senderHost.split(".").some((p) => p.startsWith("xn--"))) add("LOOKALIKE_DOMAIN", "high", `The sender's domain uses disguised characters (${senderHost}).`);
+
+  for (const name of attachments) {
+    if (DANGEROUS_FILE.test(name.trim())) add("DANGEROUS_ATTACHMENT", "high", `The attachment "${name.slice(0, 60)}" is a program, not a document.`);
+    else if (/\.html?$/i.test(name.trim())) add("DANGEROUS_ATTACHMENT", "medium", `The attachment "${name.slice(0, 60)}" is a web page, a common way to fake a login screen.`);
+  }
+  return flags;
 }
 
 export function checkRules(text: string, sender = "", links: string[] = [], blockedDomains: string[] = [], extra: Flag[] = []): CheckResult {
@@ -147,7 +204,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   if (senderHost === COLLEGE_DOMAIN && !PLACEMENT_SENDERS.includes(senderAddr) && jobby && (company || formHost || hosts.length))
     add("HACKED_ACCOUNT", "medium", "It's from a real college account, but offers like this come only from the placement cell. The account may be hacked.");
 
-  flags.push(...extra);
+  flags.unshift(...extra); // proof beats pattern matching for the two reasons on the card
 
   // dedupe by code, keep first
   const unique = flags.filter((f, i) => flags.findIndex((g) => g.code === f.code) === i);
@@ -167,9 +224,28 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
       link: ["FORM_ASKS_DATA", "FORM_MISMATCH", "RAW_IP_LINK", "SHORT_LINK_TARGET", "SHORT_LINK", "LINK_NOT_CHECKED", "LINK_MISMATCH", "OUTSIDE_FORM"].map((c) => unique.find((f) => f.code === c)?.text).find(Boolean) ?? null,
     },
     sources: [],
+    attack: attackOf(unique),
+    checks: [],
     mode: "limited",
   };
 }
+
+const ATTACKS: [string, string][] = [
+  ["DANGEROUS_ATTACHMENT", "Malware attachment"],
+  ["ASKS_SECRET", "OTP or password theft"],
+  ["FORM_ASKS_DATA", "Phishing form"],
+  ["KNOWN_MALICIOUS", "Known phishing or malware site"],
+  ["ASKS_FEE", "Advance-fee scam"],
+  ["ASKS_DOCUMENTS", "Identity theft"],
+  ["AUTH_FAIL", "Email spoofing"],
+  ["HIDDEN_LINK", "Disguised link phishing"],
+  ["HOMOGRAPH_LINK", "Homograph attack"],
+  ["LOOKALIKE_DOMAIN", "Brand impersonation"],
+  ["LOOKALIKE_LINK", "Brand impersonation"],
+  ["HACKED_ACCOUNT", "Possible account takeover"],
+  ["REPLY_TO_MISMATCH", "Reply hijacking"],
+];
+const attackOf = (flags: Flag[]) => ATTACKS.find(([code]) => flags.some((f) => f.code === code))?.[1] ?? null;
 
 function intentOf(flags: Flag[], text: string, hasForm: boolean, hasLink: boolean): Intent {
   const has = (c: string) => flags.some((f) => f.code === c);

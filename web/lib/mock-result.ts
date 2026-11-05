@@ -19,6 +19,8 @@ export const MOCK_RESULT: CheckResult = {
     company: "Microsoft's careers site lists internships, but applications go through careers.microsoft.com, never by email or OTP.",
     link: "The link is shortened (bit.ly), so you can't see where it really goes.",
   },
+  attack: "OTP or password theft",
+  checks: [{ label: "Sender authentication", status: "fail", detail: "DMARC failed: this mail isn't really from microsoft.com." }],
   sources: [{ title: "Microsoft Careers (example source)", url: "https://careers.microsoft.com" }],
   mode: "full",
 };

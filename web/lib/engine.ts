@@ -19,7 +19,7 @@ export const COMPANIES: Record<string, string[]> = {
 };
 
 const FREE_MAIL = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "rediffmail.com", "proton.me", "protonmail.com", "yahoo.in"];
-const SHORTENERS = ["bit.ly", "tinyurl.com", "t.co", "goo.gl", "cutt.ly", "rb.gy", "is.gd", "shorturl.at", "tiny.cc"];
+export const SHORTENERS = ["bit.ly", "tinyurl.com", "t.co", "goo.gl", "cutt.ly", "rb.gy", "is.gd", "shorturl.at", "tiny.cc"];
 const FORM_HOSTS = ["forms.gle", "docs.google.com", "forms.office.com", "typeform.com", "jotform.com", "form.jotform.com"];
 
 const RANK: Record<Level, number> = { low: 0, medium: 1, high: 2 };
@@ -32,6 +32,7 @@ const NEXT_STEP: Record<string, string> = {
   BLOCKED_SENDER: "This sender was already reported as fake on campus. Don't reply or click anything.",
   LOOKALIKE_DOMAIN: "Don't reply or click. Find the company's careers page yourself and apply there.",
   RAW_IP_LINK: "Don't open the link. Verify the offer with the placement cell.",
+  FORM_ASKS_DATA: "Don't fill this form. Report it to the placement cell.",
   HACKED_ACCOUNT: "Call or meet the sender in person to confirm they sent this, before you open the link.",
 };
 const DEFAULT_NEXT = "Don't act on this mail yet. Verify it with the placement cell or the company's official careers page.";
@@ -45,10 +46,19 @@ export function hostOf(url: string): string | null {
   }
 }
 
-const isOn = (host: string, domains: string[]) => domains.some((d) => host === d || host.endsWith(`.${d}`));
+export const isOn = (host: string, domains: string[]) => domains.some((d) => host === d || host.endsWith(`.${d}`));
 
 // "micr0soft-careers.co" -> "microsoftcareers.co": catches digit swaps and hyphen tricks.
 const unswap = (s: string) => s.replace(/0/g, "o").replace(/1/g, "l").replace(/3/g, "e").replace(/5/g, "s").replace(/-/g, "");
+
+export const SECRET = /\b(otp|one[- ]time password|verification code|password|passcode|(upi|atm|card) pin)\b/i;
+export const ID_OR_BANK = /\b(aadhaa?r|pan\b|pan card|bank account|account number|ifsc|upi|cvv|card number|debit card)\b/i;
+
+export function findLinks(text: string, links: string[] = []): string[] {
+  return [...links, ...(text.match(/\b(?:https?:\/\/|www\.)[^\s<>"')]+|\b(?:bit\.ly|forms\.gle|tinyurl\.com|cutt\.ly|rb\.gy)\/[^\s<>"')]+/gi) ?? [])];
+}
+
+export const claimedCompany = (text: string) => Object.keys(COMPANIES).find((c) => new RegExp(`\\b${c}\\b`, "i").test(text));
 
 function sentences(text: string): string[] {
   return text.split(/[.!?\n]+/).map((s) => s.trim()).filter(Boolean);
@@ -74,21 +84,20 @@ function asks(text: string, what: RegExp, verb?: RegExp): boolean {
   });
 }
 
-export function checkRules(text: string, sender = "", links: string[] = [], blockedDomains: string[] = []): CheckResult {
+export function checkRules(text: string, sender = "", links: string[] = [], blockedDomains: string[] = [], extra: Flag[] = []): CheckResult {
   const flags: Flag[] = [];
   const add = (code: string, level: Level, msg: string) => flags.push({ code, level, text: msg });
-  const lower = text.toLowerCase();
   const jobby = JOBBY.test(text);
 
   // --- what the mail asks you to do ---
   const shareVerb = /\b(shar(e|es|ed|ing)|send(s|ing)?|repl(y|ies|ying)|provid(e|ing)|tell|forward(ing)?|enter(ing)?|submit(ting)?|give|giving|mention|fill(ing)?)\b/i;
   // "pin" alone would hit "PIN code" in addresses, so only UPI/ATM/card PINs count.
-  if (asks(text, /\b(otp|one[- ]time password|verification code|password|passcode|(upi|atm|card) pin)\b/i, shareVerb))
+  if (asks(text, SECRET, shareVerb))
     add("ASKS_SECRET", "high", "It asks you to share an OTP or password. No real recruiter ever needs this.");
   // Matches money *you* pay (fee/deposit, "pay ₹500"), not salary text like "pay of ₹20,000".
   if (asks(text, /\b(fee|fees|deposit|charges)\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i))
     add("ASKS_FEE", "high", "It asks you to pay money. Real companies don't charge you to get hired.");
-  if (asks(text, /\b(aadhaa?r|pan\b|pan card|bank account|account number|ifsc|upi|cvv|card number|debit card)\b/i, shareVerb))
+  if (asks(text, ID_OR_BANK, shareVerb))
     add("ASKS_DOCUMENTS", "high", "It asks for ID or bank details over mail before any formal process.");
   if (asks(text, /\b(whatsapp|telegram)\b/i, /\b(contact|message|join|reply|add|text|ping|dm)\b/i))
     add("MOVE_TO_CHAT", "medium", "It moves the conversation to WhatsApp/Telegram, away from official channels.");
@@ -100,7 +109,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   // --- who sent it ---
   const senderAddr = sender.trim().toLowerCase();
   const senderHost = senderAddr.includes("@") ? senderAddr.split("@").pop()! : "";
-  const company = Object.keys(COMPANIES).find((c) => new RegExp(`\\b${c}\\b`, "i").test(lower));
+  const company = claimedCompany(text);
   let senderEvidence: string | null = null;
 
   if (senderHost && isOn(senderHost, blockedDomains))
@@ -123,8 +132,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   }
 
   // --- links: do they go where the mail claims? ---
-  const found = [...links, ...(text.match(/\b(?:https?:\/\/|www\.)[^\s<>"')]+|\b(?:bit\.ly|forms\.gle|tinyurl\.com|cutt\.ly|rb\.gy)\/[^\s<>"')]+/gi) ?? [])];
-  const hosts = [...new Set(found.map(hostOf).filter((h): h is string => !!h))];
+  const hosts = [...new Set(findLinks(text, links).map(hostOf).filter((h): h is string => !!h))];
   const formHost = hosts.find((h) => isOn(h, FORM_HOSTS));
   for (const h of hosts) {
     if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) add("RAW_IP_LINK", "high", `The link goes to a bare IP address (${h}), not a real website.`);
@@ -138,6 +146,8 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   // --- own-org sender: real college account, content that doesn't fit (possible hacked account) ---
   if (senderHost === COLLEGE_DOMAIN && !PLACEMENT_SENDERS.includes(senderAddr) && jobby && (company || formHost || hosts.length))
     add("HACKED_ACCOUNT", "medium", "It's from a real college account, but offers like this come only from the placement cell. The account may be hacked.");
+
+  flags.push(...extra);
 
   // dedupe by code, keep first
   const unique = flags.filter((f, i) => flags.findIndex((g) => g.code === f.code) === i);
@@ -154,7 +164,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
     evidence: {
       sender: senderEvidence ?? unique.find((f) => ["FREE_MAIL_CLAIM", "LOOKALIKE_DOMAIN", "WRONG_DOMAIN", "BLOCKED_SENDER", "HACKED_ACCOUNT"].includes(f.code))?.text ?? null,
       company: null,
-      link: unique.find((f) => ["RAW_IP_LINK", "SHORT_LINK", "LINK_MISMATCH", "OUTSIDE_FORM"].includes(f.code))?.text ?? null,
+      link: ["FORM_ASKS_DATA", "FORM_MISMATCH", "RAW_IP_LINK", "SHORT_LINK_TARGET", "SHORT_LINK", "LINK_MISMATCH", "OUTSIDE_FORM"].map((c) => unique.find((f) => f.code === c)?.text).find(Boolean) ?? null,
     },
     sources: [],
     mode: "limited",

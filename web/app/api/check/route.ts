@@ -1,10 +1,11 @@
 import { checkRules } from "@/lib/engine";
+import { checkLinks } from "@/lib/links";
 import type { CheckRequest } from "@/lib/types";
 
 const MAX_TEXT = 20_000;
 const MAX_LINKS = 20;
 
-// shortcut: rules only (mode "limited"). Add the LLM, web search and form fetch here once the keys are in .env.local.
+// shortcut: rules only (mode "limited"). Add the LLM and web search here once the keys are in .env.local.
 export async function POST(request: Request) {
   let body: CheckRequest;
   try {
@@ -20,5 +21,5 @@ export async function POST(request: Request) {
   if (!Array.isArray(links) || links.length > MAX_LINKS || links.some((l) => typeof l !== "string" || l.length > 2000))
     return Response.json({ error: `links must be up to ${MAX_LINKS} strings` }, { status: 400 });
 
-  return Response.json(checkRules(text, sender, links));
+  return Response.json(checkRules(text, sender, links, [], await checkLinks(text, links)));
 }

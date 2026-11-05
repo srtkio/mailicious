@@ -1,5 +1,5 @@
 import { checkCompany, extractClaims, signalFlags } from "@/lib/ai";
-import { checkRules } from "@/lib/engine";
+import { checkRules, claimedCompany } from "@/lib/engine";
 import { checkLinks } from "@/lib/links";
 import type { CheckRequest } from "@/lib/types";
 
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return Response.json({ error: `links must be up to ${MAX_LINKS} strings` }, { status: 400 });
 
   const claims = await extractClaims(text, sender);
-  const [company, linkFlags] = await Promise.all([claims ? checkCompany(claims, sender) : null, checkLinks(text, links, claims?.company ?? undefined)]);
+  const [company, linkFlags] = await Promise.all([claims ? checkCompany(claims, sender) : null, checkLinks(text, links, claimedCompany(text) ?? claims?.company ?? undefined)]);
   const extra = [...signalFlags(claims?.signals ?? []), ...(company?.flags ?? []), ...linkFlags];
   const result = checkRules(text, sender, links, [], extra);
 

@@ -85,7 +85,7 @@ curl -s localhost:3000/api/check -H 'content-type: application/json' \
 2. **Links (`links.ts`).** Follows short links and reads Google Forms. It flags forms asking for an OTP, ID, bank details or payment, and forms that never mention the company in the mail.
 3. **AI and search (`ai.ts`).** Gemini pulls out the company and role and spots an offer that doesn't add up. Tavily finds the company's real website, and Gemini answers only from those results, with sources. If the sender isn't on that website, we flag it.
 
-The mail is written by the scammer, so we assume it may try to instruct the AI. The AI can only add risk, its offer judgments come from a fixed list with our own wording, and a website only counts if a real search result is on it.
+The mail is written by the scammer, so we assume it may try to instruct the AI. The AI can't lower a rule's flag, its offer judgments come from a fixed list with our own wording, and a website only counts if a real search result is on it and it isn't a job board or shared host.
 
 The rule is that **the final level is the highest risk found**. If AI or search fails, the student still gets the rules and link results, marked `mode: "limited"`. Failures are logged on the server.
 
@@ -136,6 +136,7 @@ Flags you'll see:
 - The company list is a small hard-coded seed until Supabase is in. Other companies rely on the live search.
 - Companies with a second domain can get a wrong MEDIUM: a real `zohocorp.com` mail is flagged because search found `zoho.com`.
 - "Couldn't confirm" means we found no official site. It does not mean fake.
+- A confirmed company only means it has its own website. A scammer can build a site for a made-up company, so never say "confirmed" means safe.
 - A check takes about 2 to 10 seconds, and longer when Gemini is busy.
 - `/api/check` has no rate limit yet, so a public site could drain the free quotas.
 - Rules are deliberately cautious: they'd rather flag a real mail than miss a scam.

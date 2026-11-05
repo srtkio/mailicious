@@ -1,14 +1,19 @@
 // AI and web evidence. Server only. The mail text is written by the scammer, so nothing the model says
-// can lower risk: it only adds flags, offer judgments are a fixed list with our wording, and the one free-text
-// field is short, link-free and shown as evidence. Any failure falls back to the rules result ("limited").
-import { claimedCompany, hostOf, isOn } from "./engine";
+// can lower a rule's flag: the rules' company wins, offer judgments are a fixed list with our wording, and the
+// one free-text field is short, link-free and only shown for a verified site. Any failure falls back to "limited".
+import { claimedCompany, FREE_MAIL, hostOf, isOn } from "./engine";
 import type { Flag } from "./types";
 
 const MODELS = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.8-flash"]; // tried in order: busy models return 503 during demand spikes
 const MODEL_TIMEOUT_MS = 6000;
 const SEARCH_TIMEOUT_MS = 10000;
 const MAX_MAIL = 8000;
-const FREE_MAIL = /^(gmail|yahoo|outlook|hotmail|rediffmail|proton|protonmail)\./;
+const DOMAIN_SHAPED = /\b[\w-]+(\.[\w-]+)+\S*/;
+// shortcut: short list, not the full public suffix list. A site missing here only costs a domain flag; use tldts if that shows up.
+const NOT_A_COMPANY_SITE = [
+  "co.in", "org.in", "net.in", "ac.in", "edu.in", "gov.in", "co.uk", "vercel.app", "netlify.app", "github.io", "web.app", "pages.dev", "herokuapp.com", "wixsite.com", "wordpress.com", "blogspot.com", "notion.site", "sites.google.com",
+  "linkedin.com", "naukri.com", "indeed.com", "glassdoor.com", "internshala.com", "foundit.in", "foundit.sg", "facebook.com", "instagram.com", "x.com", "twitter.com", "youtube.com", "wikipedia.org", "crunchbase.com", "ambitionbox.com",
+];
 
 export type Claims = { company: string | null; role: string | null; signals: string[] };
 export type CompanyCheck = { flags: Flag[]; summary: string | null; sources: { title: string; url: string }[] };
@@ -55,8 +60,7 @@ export async function extractClaims(text: string, sender: string): Promise<Claim
 company: the employer it claims to represent, or null. role: the job title, or null.
 signals: include "pay_too_high" if the pay is far above market for an Indian fresher. Include "unsolicited_offer" only if it says the reader is already hired, selected or offered a job and mentions no application. An invite to apply or to interview is not unsolicited.
 <<<MAIL
-From: ${sender.slice(0, 320)}
-${text.slice(0, MAX_MAIL)}
+${`From: ${sender.slice(0, 320)}\n${text.slice(0, MAX_MAIL)}`.replace(/<<<MAIL|MAIL>>>/g, "")}
 MAIL>>>`,
       {
         type: "OBJECT",
@@ -68,8 +72,9 @@ MAIL>>>`,
         required: ["company", "role", "signals"],
       },
     );
+    const company = shortText(out.company, 60);
     return {
-      company: shortText(out.company, 60),
+      company: company && company.length >= 3 && !DOMAIN_SHAPED.test(company) ? company : null,
       role: shortText(out.role, 60),
       signals: Array.isArray(out.signals) ? out.signals.filter((s) => typeof s === "string" && s in SIGNALS) : [],
     };
@@ -128,19 +133,26 @@ ${results.map((r, i) => `[${i}] ${r.title}\n${r.url}\n${r.content.slice(0, 600)}
       );
       const seen = results.map((r) => hostname(r.url));
       const domains = Array.isArray(out.official_domains) ? out.official_domains : [];
-      const summary = shortText(String(out.summary ?? "").replace(/\S*(https?:\/\/|www\.)\S*/gi, ""), 240);
+      const summary = shortText(String(out.summary ?? "").replace(new RegExp(DOMAIN_SHAPED, "g"), ""), 240);
+      // A domain counts only if a real search result sits on it or under it, so the model can't invent one.
+      const official = domains
+        .flatMap((d) => hostOf(String(d)) ?? [])
+        .filter((d) => d.includes(".") && !isOn(d, NOT_A_COMPANY_SITE) && seen.some((h) => isOn(h, [d])));
       found = {
-        // A domain counts only if a real search result sits on it or under it, so the model can't invent one.
-        official: domains.flatMap((d) => hostOf(String(d)) ?? []).filter((d) => d.includes(".") && seen.some((h) => isOn(h, [d]))),
-        summary: out.status === "confirmed" && summary ? summary : `Couldn't confirm that ${company} is running this. That doesn't prove it's fake.`,
-        sources: (Array.isArray(out.sources) ? out.sources : []).map((i) => results[i as number]).filter(Boolean).slice(0, 3).map((r) => ({ title: r.title.slice(0, 120), url: r.url })),
+        official,
+        summary: out.status === "confirmed" && official.length && summary ? summary : `Couldn't confirm that ${company} is running this. That doesn't prove it's fake.`,
+        sources: (Array.isArray(out.sources) ? out.sources : [])
+          .map((i) => results[i as number])
+          .filter((r) => r && isOn(hostname(r.url), official))
+          .slice(0, 3)
+          .map((r) => ({ title: r.title.slice(0, 120), url: r.url })),
       };
-      cache.set(key, found);
+      if (official.length) cache.set(key, found); // a failed lookup shouldn't stick
     }
     const flags: Flag[] = [];
     const host = sender.includes("@") ? sender.trim().toLowerCase().split("@").pop()! : "";
     // The rules already judge seed companies, free mail and the college's own domain.
-    if (host && found.official.length && !claimedCompany(company) && !FREE_MAIL.test(host) && !isOn(host, found.official))
+    if (host && found.official.length && !claimedCompany(company) && !FREE_MAIL.includes(host) && !isOn(host, found.official))
       flags.push({ code: "COMPANY_DOMAIN_MISMATCH", level: "medium", text: `${company}'s website is ${found.official[0]}, but this came from ${host}.` });
     return { flags, summary: found.summary, sources: found.sources };
   } catch (e) {

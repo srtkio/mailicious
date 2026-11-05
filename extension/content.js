@@ -41,6 +41,8 @@
     .toast { position: fixed; right: 20px; bottom: 20px; z-index: 2147483647; max-width: 340px; background: #b3122a; color: #fff; padding: 12px 14px; border-radius: 6px; }
   `;
   const MARKS = { pass: "✓", warn: "!", fail: "✕", skip: "–" };
+  // Selectors as gmail.js and InboxSDK use them; the second of each pair is InboxSDK's fallback.
+  const bodyOf = (message) => message.querySelector(".a3s") ?? message.querySelector(".ii.gt");
 
   const results = new Map(); // message id -> result, or "pending"
   let latest = null;
@@ -147,17 +149,17 @@
 
   async function checkMessage(message) {
     const id = (message.dataset.messageId ?? "").replace(/^#/, "");
-    const body = message.querySelector(".a3s");
+    const body = bodyOf(message);
     if (!id || !body || results.has(id)) return;
     const text = body.innerText.trim();
-    const subject = document.querySelector("h2.hP")?.textContent ?? "";
+    const subject = document.querySelector("h2.hP, .ha h2")?.textContent ?? "";
     if (!text || !PLACEMENT.test(`${subject} ${text}`)) return results.set(id, null);
 
     results.set(id, "pending");
-    const sender = message.querySelector(".gD[email]")?.getAttribute("email") ?? "";
+    const sender = message.querySelector(".gD[email], td.gF span[email]")?.getAttribute("email") ?? "";
     const anchors = [...body.querySelectorAll("a[href]")].filter((a) => /^https?:/i.test(a.href)).slice(0, 40);
     const linkPairs = anchors.map((a) => ({ text: a.textContent.trim().slice(0, 300), href: a.href.slice(0, 2000) }));
-    const attachments = [...message.querySelectorAll(".aV3, .aQA span")].map((n) => n.textContent.trim().slice(0, 200)).filter(Boolean).slice(0, 20);
+    const attachments = [...message.querySelectorAll(".aV3")].map((n) => n.textContent.trim().slice(0, 200)).filter(Boolean).slice(0, 20);
     const headers = await fetchHeaders(id, message.dataset.legacyMessageId);
 
     const result = await new Promise((done) =>
@@ -171,7 +173,7 @@
 
   function show(message, id, result) {
     if (message.querySelector(`[data-placementshield="${window.CSS.escape(id)}"]`)) return;
-    (message.querySelector(".a3s")?.parentElement ?? message).prepend(card(result, id));
+    (bodyOf(message)?.parentElement ?? message).prepend(card(result, id));
   }
 
   function resultFor(node) {
@@ -196,7 +198,7 @@
   function scan() {
     markInbox();
     document.querySelectorAll("[data-message-id]").forEach((message) => {
-      if (!message.querySelector(".a3s")?.offsetParent) return; // collapsed in the thread
+      if (!bodyOf(message)?.offsetParent) return; // collapsed in the thread
       const id = message.dataset.messageId.replace(/^#/, "");
       const known = results.get(id);
       if (known && known !== "pending") show(message, id, known); // Gmail re-renders and drops the card
@@ -207,7 +209,7 @@
   document.addEventListener(
     "click",
     (event) => {
-      const link = event.target.closest?.(".a3s a[href]");
+      const link = event.target.closest?.(".a3s a[href], .ii.gt a[href]");
       if (!link || resultFor(link)?.level !== "high") return;
       event.preventDefault();
       event.stopPropagation();
@@ -219,7 +221,7 @@
   document.addEventListener(
     "input",
     (event) => {
-      const box = event.target.closest?.('[role="textbox"][contenteditable="true"]');
+      const box = event.target.closest?.('[role="textbox"][contenteditable="true"], [g_editable="true"]');
       if (!box) return;
       const text = box.innerText;
       const hit = PRIVATE_DATA.find(([re]) => re.test(text));

@@ -7,10 +7,10 @@ vi.mock("@/lib/ai", () => ({
   checkCompany: vi.fn(async () => null),
   signalFlags: () => [],
 }));
-import { extractClaims } from "@/lib/ai";
+import { checkCompany, extractClaims } from "@/lib/ai";
 
-const call = (ip: string) =>
-  POST(new Request("http://x/api/check", { method: "POST", headers: { "x-forwarded-for": ip }, body: JSON.stringify({ text: "Share the OTP now" }) }));
+const call = (ip: string, text = "Share the OTP now") =>
+  POST(new Request("http://x/api/check", { method: "POST", headers: { "x-forwarded-for": ip }, body: JSON.stringify({ text }) }));
 
 describe("AI time budget", () => {
   it("answers from the rules when the AI hangs", async () => {
@@ -28,6 +28,17 @@ describe("AI time budget", () => {
 describe("mode", () => {
   it("counts as a full check when the mail names no company to look up", async () => {
     expect((await (await call("4.4.4.4")).json()).mode).toBe("full");
+    vi.mocked(extractClaims).mockClear();
+  });
+  it("is limited when the model hides a company the rules can see, and still looks it up", async () => {
+    const body = await (await call("5.5.5.5", "Microsoft internship, share the OTP")).json();
+    expect(vi.mocked(checkCompany).mock.calls.at(-1)![0].company).toBe("microsoft");
+    expect(body.mode).toBe("limited");
+    vi.mocked(extractClaims).mockClear();
+  });
+  it("is limited when the model's company name was refused", async () => {
+    vi.mocked(extractClaims).mockResolvedValueOnce({ company: null, role: null, signals: [], rejected: true });
+    expect((await (await call("6.6.6.6")).json()).mode).toBe("limited");
     vi.mocked(extractClaims).mockClear();
   });
 });

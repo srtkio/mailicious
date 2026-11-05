@@ -42,7 +42,8 @@ export async function POST(request: Request) {
   const deadline = new Promise<null>((resolve) => setTimeout(() => resolve(null), AI_BUDGET_MS));
   const claims = underAiLimit(ip) ? await Promise.race([extractClaims(text, sender), deadline]) : null;
   const seed = claimedCompany(text);
-  const [company, linkFlags] = await Promise.all([claims ? Promise.race([checkCompany(claims, sender, seed), deadline]) : null, checkLinks(text, links, seed ?? claims?.company ?? undefined)]);
+  const lookup = claims && { ...claims, company: claims.company ?? seed ?? null };
+  const [company, linkFlags] = await Promise.all([lookup ? Promise.race([checkCompany(lookup, sender, seed), deadline]) : null, checkLinks(text, links, seed ?? claims?.company ?? undefined)]);
   const extra = [...signalFlags(claims?.signals ?? []), ...(company?.flags ?? []), ...linkFlags];
   const result = checkRules(text, sender, links, [], extra);
 
@@ -50,6 +51,6 @@ export async function POST(request: Request) {
     ...result,
     evidence: { ...result.evidence, company: company?.summary ?? null },
     sources: company?.sources ?? [],
-    mode: claims && (company || !claims.company) ? "full" : "limited", // no company named means nothing to look up, not a failure
+    mode: lookup && (company || (!lookup.company && !lookup.rejected)) ? "full" : "limited", // no company anywhere means nothing to look up, not a failure
   });
 }

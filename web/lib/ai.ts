@@ -17,7 +17,7 @@ const NOT_A_COMPANY_SITE = [
   "linkedin.com", "naukri.com", "indeed.com", "glassdoor.com", "internshala.com", "foundit.in", "foundit.sg", "facebook.com", "instagram.com", "x.com", "twitter.com", "youtube.com", "wikipedia.org", "crunchbase.com", "ambitionbox.com",
 ];
 
-export type Claims = { company: string | null; role: string | null; signals: string[] };
+export type Claims = { company: string | null; role: string | null; signals: string[]; rejected?: boolean }; // rejected: the model gave a company name we refused to use
 export type CompanyCheck = { flags: Flag[]; summary: string | null; sources: { title: string; url: string }[] };
 
 const SIGNALS: Record<string, string> = {
@@ -80,6 +80,7 @@ ${boundary}>>>`,
     // "Booking.com" is a name; "Acme, apply at evil.in" is not.
     const isName = company && !company.includes("://") && !(/\s/.test(company) && LINK_LIKE.test(company));
     return {
+      rejected: (!!company && !isName) || undefined,
       company: isName ? company : null,
       role: shortText(out.role, 60),
       signals: Array.isArray(out.signals) ? out.signals.filter((s) => typeof s === "string" && s in SIGNALS) : [],

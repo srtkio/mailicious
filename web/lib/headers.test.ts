@@ -53,6 +53,10 @@ describe("analyzeHeaders", () => {
     expect(codes(head("spf=pass (unclosed; dkim=pass; dmarc=fail"))).toContain("AUTH_FAIL");
     expect(codes(head('spf=pass "unclosed; dkim=pass; dmarc=fail'))).toContain("AUTH_FAIL");
   });
+  it("applies every verdict after a broken comment, not just failures", () => {
+    expect(codes(head("spf=pass (unclosed; dkim=pass; dmarc=hardfail"))).toContain("AUTH_FAIL");
+    expect(codes(head("spf=softfail (unclosed; dkim=pass; dmarc=pass"))).toContain("AUTH_WEAK");
+  });
   it("isn't fooled by nested comments", () => {
     expect(codes(head("spf=fail (x (y) ; dmarc=pass) ; dkim=fail; dmarc=fail"))).toContain("AUTH_FAIL");
   });
@@ -110,6 +114,10 @@ describe("parseRawMail", () => {
     expect(await links('<base href="https://evil.example/"><a href="login">x</a>')).toEqual(["https://evil.example/login"]);
     expect(await links('<a href="login">x</a><base href="https://evil.example/">')).toEqual(["https://evil.example/login"]);
     expect(await links('<base href="https://evil.example/"><base href="https://safe.example/"><a href="y">x</a>')).toEqual(["https://evil.example/y"]);
+    expect(await links('<svg><base href="https://fake.example/"></base></svg><base href="https://evil.example/"><a href="z">x</a>')).toEqual(["https://evil.example/z"]);
+    const frozen = await parseRawMail(html('<base href="ftp://x.example/"><base href="https://safe.example/"><a href="z">x</a>'));
+    expect(frozen.linkPairs).toEqual([]);
+    expect(frozen.partial).toBe(true);
     expect(await links('<map><area href="https://evil.example/f" alt="map"></map>')).toEqual(["https://evil.example/f"]);
     expect(await links('<noscript><a href="https://evil.example/g">x</a></noscript>')).toEqual(["https://evil.example/g"]);
     expect(await links('<a href="/relative">x</a><a href="javascript:x()">y</a>')).toEqual([]);

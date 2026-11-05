@@ -49,8 +49,8 @@ function authResults(value: string): Record<string, string> {
     const m = segment.match(/^\s*(spf|dkim|dmarc)\s*=\s*(\w+)/i);
     if (m) record(m[1].toLowerCase(), m[2].toLowerCase());
   }
-  // A broken comment can swallow the rest of the header, so any failure anywhere in it counts.
-  if (malformed) for (const m of value.matchAll(/\b(spf|dkim|dmarc)\s*=\s*(fail|permerror)\b/gi)) record(m[1].toLowerCase(), m[2].toLowerCase());
+  // A broken comment can swallow the rest of the header, so every result anywhere in it counts.
+  if (malformed) for (const m of value.matchAll(/\b(spf|dkim|dmarc)\s*=\s*(\w+)/gi)) record(m[1].toLowerCase(), m[2].toLowerCase());
   return found;
 }
 
@@ -91,7 +91,7 @@ export function analyzeHeaders(block: string): HeaderReport {
   return { from, flags, checks };
 }
 
-type Node = { nodeName: string; value?: string; attrs?: { name: string; value: string }[]; childNodes?: Node[] };
+type Node = { nodeName: string; namespaceURI?: string; value?: string; attrs?: { name: string; value: string }[]; childNodes?: Node[] };
 
 const MAX_NODES = 200_000;
 const MAX_ANCHORS = 200;
@@ -136,6 +136,7 @@ function readHtml(html: string): { text: string; linkPairs: LinkPair[]; partial:
   const stack = [root];
   const attr = (node: Node, name: string) => node.attrs?.find((a) => a.name === name)?.value.trim();
   let base = "";
+  let baseFound = false;
   let seen = 0;
   let partial = false;
   while (stack.length) {
@@ -144,7 +145,11 @@ function readHtml(html: string): { text: string; linkPairs: LinkPair[]; partial:
       break;
     }
     const node = stack.pop()!;
-    if (node.nodeName === "base") base ||= resolveLink(attr(node, "href") ?? "", NO_BASE) ?? ""; // like browsers: the first one wins, wherever it sits
+    if (!baseFound && node.nodeName === "base" && node.namespaceURI?.endsWith("/xhtml") && attr(node, "href") !== undefined) {
+      baseFound = true; // like browsers: the first real one wins, wherever it sits, even if it's invalid
+      base = resolveLink(attr(node, "href")!, NO_BASE) ?? "";
+      partial ||= !base;
+    }
     if ((node.nodeName === "a" || node.nodeName === "area") && attr(node, "href")) anchors.push(node);
     pushChildren(stack, node);
   }

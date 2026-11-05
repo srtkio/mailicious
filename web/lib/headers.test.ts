@@ -42,6 +42,17 @@ describe("analyzeHeaders", () => {
     expect(codes(head("spf=pass; dkim=pass; dmarc=fail; dmarc=none"))).toContain("AUTH_FAIL");
     expect(codes(head("spf=fail; spf=none; dkim=fail; dkim=temperror; dmarc=none"))).toContain("AUTH_FAIL");
   });
+  it("counts verdicts it doesn't know as failures", () => {
+    expect(codes(head("spf=pass; dkim=pass; dmarc=hardfail"))).toContain("AUTH_FAIL");
+    expect(codes(head("spf=pass; dkim=pass; dmarc=fail; dmarc=weird"))).toContain("AUTH_FAIL");
+  });
+  it("treats 'policy' as a known verdict, not a failure", () => {
+    expect(codes(head("spf=pass; dkim=policy; dmarc=pass"))).toEqual([]);
+  });
+  it("still finds a failure after a broken comment", () => {
+    expect(codes(head("spf=pass (unclosed; dkim=pass; dmarc=fail"))).toContain("AUTH_FAIL");
+    expect(codes(head('spf=pass "unclosed; dkim=pass; dmarc=fail'))).toContain("AUTH_FAIL");
+  });
   it("isn't fooled by nested comments", () => {
     expect(codes(head("spf=fail (x (y) ; dmarc=pass) ; dkim=fail; dmarc=fail"))).toContain("AUTH_FAIL");
   });
@@ -97,6 +108,8 @@ describe("parseRawMail", () => {
     expect(await links('<a href="\n  ht&#9;tps://evil.example/d">x</a>')).toEqual(["https://evil.example/d"]);
     expect(await links('<a href="//evil.example/e">x</a>')).toEqual(["https://evil.example/e"]);
     expect(await links('<base href="https://evil.example/"><a href="login">x</a>')).toEqual(["https://evil.example/login"]);
+    expect(await links('<a href="login">x</a><base href="https://evil.example/">')).toEqual(["https://evil.example/login"]);
+    expect(await links('<base href="https://evil.example/"><base href="https://safe.example/"><a href="y">x</a>')).toEqual(["https://evil.example/y"]);
     expect(await links('<map><area href="https://evil.example/f" alt="map"></map>')).toEqual(["https://evil.example/f"]);
     expect(await links('<noscript><a href="https://evil.example/g">x</a></noscript>')).toEqual(["https://evil.example/g"]);
     expect(await links('<a href="/relative">x</a><a href="javascript:x()">y</a>')).toEqual([]);
@@ -115,6 +128,13 @@ describe("parseRawMail", () => {
     const part = (head: string) => [`Content-Type: multipart/mixed; boundary="b"`, "", "--b", "Content-Type: text/plain", "", "hi", "--b", head, "", "AAAA", "--b--"].join("\r\n");
     expect((await parseRawMail(part("Content-Type: application/octet-stream\r\nContent-Disposition: attachment; filename*=UTF-8''offer%2Epdf%2Eexe"))).attachments).toEqual(["offer.pdf.exe"]);
     expect((await parseRawMail(part('Content-Type: application/octet-stream\r\nContent-Disposition: attachment; filename="=?UTF-8?B?b2ZmZXIuZXhl?="'))).attachments).toEqual(["offer.exe"]);
+  });
+  it("reads link text behind padding, and admits when it can't", async () => {
+    const spaced = await parseRawMail(html(`<a href="https://evil.example/">${"<span> </span>".repeat(600)}careers.microsoft.com</a>`));
+    expect(spaced.linkPairs[0].text).toBe("careers.microsoft.com");
+    expect(spaced.partial).toBe(false);
+    const padded = await parseRawMail(html(`<a href="https://evil.example/">${"<span></span>".repeat(3000)}careers.microsoft.com</a>`));
+    expect(padded.partial).toBe(true);
   });
   it("stays fast on hostile HTML", async () => {
     const start = Date.now();

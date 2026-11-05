@@ -15,11 +15,11 @@ const headerValues = (block: string, name: string): string[] =>
 const address = (v = "") => (v.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] ?? v.match(/[^\s<>"',;]+@[^\s<>"',;]+/)?.[0] ?? "").toLowerCase();
 const domainOf = (a: string) => a.split("@").pop() ?? "";
 
-const VERDICT_RANK = ["pass", "none", "neutral", "temperror", "softfail", "fail", "permerror"];
-const rank = (verdict: string) => VERDICT_RANK.indexOf(verdict) + 1 || VERDICT_RANK.length; // unknown words count as worst
+const VERDICT_RANK = ["pass", "none", "neutral", "policy", "temperror", "softfail", "fail", "permerror"];
+const rank = (verdict: string) => VERDICT_RANK.indexOf(verdict);
 
 // Removes quoted strings and comments, which can nest, in one left-to-right pass.
-function stripComments(value: string): string {
+function stripComments(value: string): { clean: string; malformed: boolean } {
   let out = "";
   let depth = 0;
   let quoted = false;
@@ -32,19 +32,25 @@ function stripComments(value: string): string {
     else if (!depth && c === '"') quoted = true;
     else if (!depth) out += c;
   }
-  return out;
+  return { clean: out, malformed: depth > 0 || quoted };
 }
 
 // Reads methods from the start of each ";" segment, so an address containing "dmarc=pass" can't pose as a
-// result. Every segment counts, because Outlook has no server name first. The worst verdict for a method wins.
+// result. Every segment counts, because Outlook has no server name first. The worst verdict for a method wins,
+// and a word we don't know counts as a failure.
 function authResults(value: string): Record<string, string> {
   const found: Record<string, string> = {};
-  for (const segment of stripComments(value).split(";")) {
-    const m = segment.match(/^\s*(spf|dkim|dmarc)\s*=\s*(\w+)/i);
-    if (!m) continue;
-    const [method, verdict] = [m[1].toLowerCase(), m[2].toLowerCase()];
+  const record = (method: string, word: string) => {
+    const verdict = VERDICT_RANK.includes(word) ? word : "permerror";
     if (!found[method] || rank(verdict) > rank(found[method])) found[method] = verdict;
+  };
+  const { clean, malformed } = stripComments(value);
+  for (const segment of clean.split(";")) {
+    const m = segment.match(/^\s*(spf|dkim|dmarc)\s*=\s*(\w+)/i);
+    if (m) record(m[1].toLowerCase(), m[2].toLowerCase());
   }
+  // A broken comment can swallow the rest of the header, so any failure anywhere in it counts.
+  if (malformed) for (const m of value.matchAll(/\b(spf|dkim|dmarc)\s*=\s*(fail|permerror)\b/gi)) record(m[1].toLowerCase(), m[2].toLowerCase());
   return found;
 }
 
@@ -98,19 +104,19 @@ function pushChildren(stack: Node[], node: Node) {
   for (let i = kids.length - 1; i >= 0; i--) stack.push(kids[i]);
 }
 
-function textOf(root: Node, maxChars: number, maxNodes: number): string {
+function textOf(root: Node, maxChars: number, maxNodes: number): { text: string; cut: boolean } {
   const parts: string[] = [];
   const stack = [root];
-  let length = 0;
+  let length = 0; // visible characters only, so whitespace padding can't use up the limit
   for (let seen = 0; stack.length && seen < maxNodes && length < maxChars; seen++) {
     const node = stack.pop()!;
     if (node.nodeName === "style" || node.nodeName === "script") continue;
     const piece = node.nodeName === "#text" ? (node.value ?? "") : /^(p|div|br|tr|li)$/.test(node.nodeName) ? " " : "";
     parts.push(piece);
-    length += piece.length;
+    length += piece.trim().length;
     pushChildren(stack, node);
   }
-  return parts.join("").replace(/\s+/g, " ").trim();
+  return { text: parts.join("").replace(/\s+/g, " ").trim(), cut: stack.length > 0 && length < maxChars };
 }
 
 // Cleans a link the way a browser does, so "ht\ntps://x", " //x" and <base> tricks can't hide it.
@@ -126,10 +132,10 @@ function resolveLink(href: string, base: string): string | null {
 
 function readHtml(html: string): { text: string; linkPairs: LinkPair[]; partial: boolean } {
   const root = parse(html, { scriptingEnabled: false }) as unknown as Node;
-  const linkPairs: LinkPair[] = [];
+  const anchors: Node[] = [];
   const stack = [root];
   const attr = (node: Node, name: string) => node.attrs?.find((a) => a.name === name)?.value.trim();
-  let base = NO_BASE;
+  let base = "";
   let seen = 0;
   let partial = false;
   while (stack.length) {
@@ -138,14 +144,24 @@ function readHtml(html: string): { text: string; linkPairs: LinkPair[]; partial:
       break;
     }
     const node = stack.pop()!;
-    if (node.nodeName === "base") base = resolveLink(attr(node, "href") ?? "", NO_BASE) ?? base;
-    const href = node.nodeName === "a" || node.nodeName === "area" ? attr(node, "href") : undefined;
-    const link = href ? resolveLink(href, base) : null;
-    if (link && linkPairs.length >= MAX_ANCHORS) partial = true;
-    else if (link) linkPairs.push({ href: link.slice(0, 2000), text: node.nodeName === "area" ? (attr(node, "alt") ?? "").slice(0, 500) : textOf(node, 500, ANCHOR_NODES).slice(0, 500) });
+    if (node.nodeName === "base") base ||= resolveLink(attr(node, "href") ?? "", NO_BASE) ?? ""; // like browsers: the first one wins, wherever it sits
+    if ((node.nodeName === "a" || node.nodeName === "area") && attr(node, "href")) anchors.push(node);
     pushChildren(stack, node);
   }
-  return { text: textOf(root, Infinity, MAX_NODES), linkPairs, partial };
+
+  const linkPairs: LinkPair[] = [];
+  for (const node of anchors) {
+    const link = resolveLink(attr(node, "href")!, base || NO_BASE);
+    if (!link) continue;
+    if (linkPairs.length >= MAX_ANCHORS) {
+      partial = true;
+      break;
+    }
+    const shown = node.nodeName === "area" ? { text: attr(node, "alt") ?? "", cut: false } : textOf(node, 500, ANCHOR_NODES);
+    partial ||= shown.cut;
+    linkPairs.push({ href: link.slice(0, 2000), text: shown.text.slice(0, 500) });
+  }
+  return { text: textOf(root, Infinity, MAX_NODES).text, linkPairs, partial };
 }
 
 export type ParsedMail = { headers: string; text: string; linkPairs: LinkPair[]; attachments: string[]; partial: boolean }; // partial: part of it couldn't be read

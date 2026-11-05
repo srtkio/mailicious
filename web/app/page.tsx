@@ -54,6 +54,7 @@ const EXTENSION_POINTS = [
   ["Catches what you're about to send", "Warns you if you type an OTP, Aadhaar, PAN or card number into a reply."],
   ["Sees real sender checks", "Reads the same SPF, DKIM and DMARC results Gmail recorded for the mail."],
   ["Marks risky mail in your inbox", "A dot appears beside suspicious placement mails before you open them."],
+  ["Protects the whole campus", "Report a sender, and once the placement cell marks it fake, every student is warned."],
 ];
 
 const INSTALL_STEPS = [
@@ -220,6 +221,30 @@ export default function Home() {
   );
 }
 
+function Report({ result }: { result: CheckResult }) {
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+
+  async function send() {
+    setState("sending");
+    const res = await fetch("/api/report", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sender: result.sender, level: result.level, attack: result.attack }),
+    }).catch(() => null);
+    setState(res?.ok ? "sent" : "failed");
+  }
+
+  if (state === "sent") return <p className="mt-5 text-low">Reported to your placement cell.</p>;
+  return (
+    <p className="mt-5">
+      <button type="button" disabled={state === "sending"} onClick={send} className="border border-pad px-4 py-2 font-bold text-pad disabled:opacity-60">
+        {state === "sending" ? "Reporting…" : "Report this sender"}
+      </button>
+      {state === "failed" && <span className="ml-3 text-high">Reporting failed. Try again.</span>}
+    </p>
+  );
+}
+
 function Verdict({ result }: { result: CheckResult }) {
   const { stamp, color } = VERDICT[result.level];
   const evidence = [result.evidence.company].filter((e): e is string => !!e);
@@ -257,6 +282,8 @@ function Verdict({ result }: { result: CheckResult }) {
           </li>
         ))}
       </ul>
+
+      {result.level !== "low" && result.sender && <Report result={result} />}
 
       <details className="mt-5 border-t border-rule pt-3">
         <summary className="cursor-pointer text-pad underline underline-offset-4">Why?</summary>

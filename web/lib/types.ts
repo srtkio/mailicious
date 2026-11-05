@@ -51,4 +51,5 @@ export type CheckResult = {
   attack: string | null; // the kind of attack, e.g. "Advance-fee scam"
   checks: SecurityCheck[]; // the security report
   mode: "full" | "limited"; // limited = rules only (no AI/search)
+  sender?: string; // the address checked, for reporting
 };

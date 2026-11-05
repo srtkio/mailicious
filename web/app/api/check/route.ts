@@ -4,6 +4,7 @@ import { analyzeHeaders, parseRawMail } from "@/lib/headers";
 import { threatIntel } from "@/lib/intel";
 import { checkLinks } from "@/lib/links";
 import { securityReport } from "@/lib/report";
+import { blockedTargets, logEvent, reportTarget } from "@/lib/store";
 import type { CheckRequest, Flag } from "@/lib/types";
 
 const MAX_TEXT = 20_000;
@@ -74,11 +75,14 @@ export async function POST(request: Request) {
   const claims = underAiLimit(ip) ? await Promise.race([extractClaims(text, sender), deadline]) : null;
   const seed = claimedCompany(text);
   const lookup = claims && { ...claims, company: claims.company ?? seed ?? null };
-  const [company, linkFlags, intel] = await Promise.all([
+  const [company, linkFlags, intel, blocked] = await Promise.all([
     lookup ? Promise.race([checkCompany(lookup, sender, seed), deadline]) : null,
     checkLinks(text, allLinks, seed ?? claims?.company ?? undefined),
     threatIntel(sender, allLinks).catch(() => ({ flags: [], checks: [] })),
+    blockedTargets(),
   ]);
+  const target = reportTarget(sender);
+  if (target?.includes("@") && blocked.includes(target)) unread.push({ code: "BLOCKED_SENDER", level: "high", text: "Your placement cell already marked this address as fake." });
   const extra = [
     ...unread,
     ...signalFlags(claims?.signals ?? []),
@@ -88,10 +92,12 @@ export async function POST(request: Request) {
     ...intel.flags,
     ...deepRules({ sender, links: allLinks, linkPairs, attachments: files }),
   ];
-  const result = checkRules(text, sender, allLinks, [], extra);
+  const result = checkRules(text, sender, allLinks, blocked.filter((b) => !b.includes("@")), extra);
+  await logEvent(result.level, result.attack);
 
   return Response.json({
     ...result,
+    sender,
     evidence: { ...result.evidence, company: company?.summary ?? null },
     sources: company?.sources ?? [],
     checks: securityReport(result.flags, [...(headers?.checks ?? []), ...intel.checks], { sender: !!sender, links: allLinks.length > 0, headers: !!headers }),

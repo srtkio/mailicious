@@ -38,6 +38,7 @@
     .actions { display: flex; gap: 10px; margin-top: 14px; }
     button { font: inherit; padding: 8px 14px; border: 1px solid #2a2f8f; background: #fff; color: #2a2f8f; border-radius: 4px; cursor: pointer; }
     button.main { background: #2a2f8f; color: #fff; }
+    button.report { margin-top: 8px; padding: 5px 10px; }
     .toast { position: fixed; right: 20px; bottom: 20px; z-index: 2147483647; max-width: 340px; background: #b3122a; color: #fff; padding: 12px 14px; border-radius: 6px; }
   `;
   const MARKS = { pass: "✓", warn: "!", fail: "✕", skip: "–" };
@@ -91,9 +92,24 @@
       a.rel = "noopener noreferrer";
       more.append(el("br"), a);
     });
-    box.append(top, list, el("p", "next", result.nextStep), more);
+    box.append(top, list, el("p", "next", result.nextStep));
+    if (result.sender) box.append(reportButton(result));
+    box.append(more);
     root.append(box);
     return host;
+  }
+
+  function reportButton(result) {
+    const button = el("button", "report", "Report this sender");
+    button.onclick = () => {
+      button.disabled = true;
+      button.textContent = "Reporting…";
+      chrome.runtime.sendMessage({ type: "report", payload: { sender: result.sender, level: result.level, attack: result.attack } }, (ok) => {
+        button.textContent = !chrome.runtime.lastError && ok ? "Reported to your placement cell" : "Report failed, try again";
+        button.disabled = !chrome.runtime.lastError && ok;
+      });
+    };
+    return button;
   }
 
   function linkWarning(url, go) {

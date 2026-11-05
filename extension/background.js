@@ -12,8 +12,14 @@ async function check(payload) {
   return result;
 }
 
+async function report(payload) {
+  const res = await fetch(API.replace("/check", "/report"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+  return res.ok;
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, reply) => {
-  if (message.type !== "check") return false;
-  check(message.payload).then(reply, () => reply(null));
+  if (message.type === "report") report(message.payload).then(reply, () => reply(false));
+  else if (message.type === "check") check(message.payload).then(reply, () => reply(null));
+  else return false;
   return true; // reply comes later
 });

@@ -68,6 +68,20 @@ const unswap = (s: string) => s.replace(/0/g, "o").replace(/1/g, "l").replace(/3
 export const SECRET = /\b(otp|one[- ]time password|verification code|password|passcode|(upi|atm|card) pin)\b/i;
 export const ID_OR_BANK = /\b(aadhaa?r|pan\b|pan card|bank account|account number|ifsc|upi|cvv|card number|debit card)\b/i;
 
+const SMS = /\b(sms|text message|(on|to) your (phone|mobile))\b/i;
+const CODE = /(?<!\b(?:pin|zip|dress|source|promo|referral) )\bcode\b/i;
+const AMOUNT = /(?:\brs\.?|\binr|₹)\s*\d[\d,]*/gi;
+// Money you'd receive. Judged beside the amount, because "INR 1999, returned with your first stipend" is still a fee.
+const INCOME = /\b(stipend|salary|ctc|lpa|per month|monthly|a month|pay of|pay you|package|allowance|bonus|reimburs\w*|scholarship|prize|award)\b/i;
+const FEE_SETTLED = /\b(included in (your|the) (semester|tuition|college)|waived)\b/i;
+const PAY_AMOUNT = /\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i;
+
+// An amount to pay that isn't called a fee, like "laptop shipping amount of ₹899 must be cleared".
+function asksForMoney(text: string): boolean {
+  const owed = [...text.matchAll(AMOUNT)].some((m) => !INCOME.test(text.slice(Math.max(0, m.index - 25), m.index + m[0].length + 25)));
+  return owed && asks(text, /\b(transfer|remit|cleared?|pay|paid|payment)\b/i);
+}
+
 export function findLinks(text: string, links: string[] = []): string[] {
   return [...links, ...(text.match(/\b(?:https?:\/\/|www\.)[^\s<>"')]+|\b(?:bit\.ly|forms\.gle|tinyurl\.com|cutt\.ly|rb\.gy)\/[^\s<>"')]+/gi) ?? [])];
 }
@@ -157,10 +171,11 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   // --- what the mail asks you to do ---
   const shareVerb = /\b(shar(e|es|ed|ing)|send(s|ing)?|repl(y|ies|ying)|provid(e|ing)|tell|forward(ing)?|enter(ing)?|submit(ting)?|give|giving|mention|fill(ing)?)\b/i;
   // "pin" alone would hit "PIN code" in addresses, so only UPI/ATM/card PINs count.
-  if (asks(text, SECRET, shareVerb))
+  if (asks(text, SECRET, shareVerb) || (SMS.test(text) && asks(text, CODE, shareVerb)))
     add("ASKS_SECRET", "high", "It asks you to share an OTP or password. No real recruiter ever needs this.");
   // Matches money *you* pay (fee/deposit, "pay ₹500"), not salary text like "pay of ₹20,000".
-  if (asks(text, /\b(fee|fees|deposit|charges)\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i))
+  const feeText = sentences(text).filter((s) => !FEE_SETTLED.test(s) || PAY_AMOUNT.test(s)).join(". ");
+  if (asks(feeText, /\b(fee|fees|deposit|charges)\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i) || asksForMoney(feeText))
     add("ASKS_FEE", "high", "It asks you to pay money. Real companies don't charge you to get hired.");
   if (asks(text, ID_OR_BANK, shareVerb))
     add("ASKS_DOCUMENTS", "high", "It asks for ID or bank details over mail before any formal process.");

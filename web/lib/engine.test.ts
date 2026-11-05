@@ -76,6 +76,17 @@ describe("deepRules", () => {
     const r = checkRules("Hello.", "", [], [], deepRules({ attachments: ["cv.html", "run.exe"] }));
     expect(r.level).toBe("high");
   });
+  it("catches codes and money that avoid the usual words, without crying wolf", () => {
+    const level = (t: string) => checkRules(t).level;
+    expect(level("We sent a code to your phone. Please forward that code to us.")).toBe("high");
+    expect(level("Kit costs ₹500, returned with your first stipend. Kindly transfer it today.")).toBe("high");
+    expect(level("Fee waived if you pay Rs 500 today.")).toBe("high");
+    expect(level("For the assignment, share the code on GitHub.")).toBe("low");
+    expect(level("We sent an SMS with the venue. Enter your PIN code in the portal.")).toBe("low");
+    expect(level("Stipend is Rs 25,000 per month, paid on the 5th.")).toBe("low");
+    expect(level("We will pay you Rs 30,000 and the travel allowance of Rs 2,000 after joining.")).toBe("low");
+    expect(level("The fee is included in your semester fees. You do not need to pay anyone.")).toBe("low");
+  });
   it("names the attack on the result", () => {
     expect(checkRules("Pay the registration fee of Rs 500.").attack).toBe("Advance-fee scam");
     expect(checkRules("Hello there.").attack).toBeNull();

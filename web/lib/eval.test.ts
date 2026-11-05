@@ -8,12 +8,7 @@ import type { Level } from "./types";
 const RANK: Record<Level, number> = { low: 0, medium: 1, high: 2 };
 
 // Known misses, with the cause. it.fails keeps `npm test` green and goes red once one is fixed, so move it out then.
-const KNOWN_MISSES: Record<string, string> = {
-  "otp-2": "low: SECRET only knows otp/verification code, not 'a code by SMS ... forward that code'",
-  "fee-2": "low: no fee/deposit word, and 'transfer it' isn't followed by an amount ('costs INR 1999')",
-  "fee-3": "low: 'amount of ₹899 must be cleared' has no fee word or pay+amount pair",
-  "real-10": "high: 'placement fee ... included in your semester fees' reads as a fee request; only 'no fee' negation is known",
-};
+const KNOWN_MISSES: Record<string, string> = {};
 
 function judge(m: Mail): Level {
   const headers = m.headers ? analyzeHeaders(m.headers) : null;

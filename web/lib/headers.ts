@@ -15,16 +15,35 @@ const headerValues = (block: string, name: string): string[] =>
 const address = (v = "") => (v.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] ?? v.match(/[^\s<>"',;]+@[^\s<>"',;]+/)?.[0] ?? "").toLowerCase();
 const domainOf = (a: string) => a.split("@").pop() ?? "";
 
-// Reads methods from the start of each ";" segment after removing comments and quoted strings, so an
-// address containing "dmarc=pass" can't pose as a result. One failure of a method counts as failed.
+const VERDICT_RANK = ["pass", "none", "neutral", "temperror", "softfail", "fail", "permerror"];
+const rank = (verdict: string) => VERDICT_RANK.indexOf(verdict) + 1 || VERDICT_RANK.length; // unknown words count as worst
+
+// Removes quoted strings and comments, which can nest, in one left-to-right pass.
+function stripComments(value: string): string {
+  let out = "";
+  let depth = 0;
+  let quoted = false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    if (c === "\\" && (quoted || depth)) i++;
+    else if (quoted) quoted = c !== '"';
+    else if (c === "(") depth++;
+    else if (c === ")") depth = Math.max(0, depth - 1);
+    else if (!depth && c === '"') quoted = true;
+    else if (!depth) out += c;
+  }
+  return out;
+}
+
+// Reads methods from the start of each ";" segment, so an address containing "dmarc=pass" can't pose as a
+// result. Every segment counts, because Outlook has no server name first. The worst verdict for a method wins.
 function authResults(value: string): Record<string, string> {
-  const clean = value.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/\([^()]*\)/g, " ");
   const found: Record<string, string> = {};
-  for (const segment of clean.split(";").slice(1)) {
+  for (const segment of stripComments(value).split(";")) {
     const m = segment.match(/^\s*(spf|dkim|dmarc)\s*=\s*(\w+)/i);
     if (!m) continue;
     const [method, verdict] = [m[1].toLowerCase(), m[2].toLowerCase()];
-    if (!found[method] || found[method] === "pass") found[method] = verdict;
+    if (!found[method] || rank(verdict) > rank(found[method])) found[method] = verdict;
   }
   return found;
 }
@@ -68,39 +87,78 @@ export function analyzeHeaders(block: string): HeaderReport {
 
 type Node = { nodeName: string; value?: string; attrs?: { name: string; value: string }[]; childNodes?: Node[] };
 
+const MAX_NODES = 200_000;
+const MAX_ANCHORS = 200;
+const ANCHOR_NODES = 2000; // per link, so links nested in links can't make the walk quadratic
+const NO_BASE = "https://no-base.invalid/";
+
 // Iterative, because a mail can nest elements deeply enough to overflow a recursive walk.
-function textOf(root: Node): string {
+function pushChildren(stack: Node[], node: Node) {
+  const kids = node.childNodes ?? [];
+  for (let i = kids.length - 1; i >= 0; i--) stack.push(kids[i]);
+}
+
+function textOf(root: Node, maxChars: number, maxNodes: number): string {
   const parts: string[] = [];
   const stack = [root];
-  while (stack.length) {
+  let length = 0;
+  for (let seen = 0; stack.length && seen < maxNodes && length < maxChars; seen++) {
     const node = stack.pop()!;
-    if (node.nodeName === "#text") parts.push(node.value ?? "");
     if (node.nodeName === "style" || node.nodeName === "script") continue;
-    if (/^(p|div|br|tr|li)$/.test(node.nodeName)) parts.push(" ");
-    stack.push(...[...(node.childNodes ?? [])].reverse());
+    const piece = node.nodeName === "#text" ? (node.value ?? "") : /^(p|div|br|tr|li)$/.test(node.nodeName) ? " " : "";
+    parts.push(piece);
+    length += piece.length;
+    pushChildren(stack, node);
   }
   return parts.join("").replace(/\s+/g, " ").trim();
 }
 
-function readHtml(html: string): { text: string; linkPairs: LinkPair[] } {
-  const root = parse(html) as unknown as Node;
-  const linkPairs: LinkPair[] = [];
-  const stack = [root];
-  while (stack.length) {
-    const node = stack.pop()!;
-    const href = node.nodeName === "a" ? node.attrs?.find((a) => a.name === "href")?.value.trim() : undefined;
-    if (href && /^https?:/i.test(href)) linkPairs.push({ href: href.slice(0, 2000), text: textOf(node).slice(0, 500) });
-    stack.push(...[...(node.childNodes ?? [])].reverse());
+// Cleans a link the way a browser does, so "ht\ntps://x", " //x" and <base> tricks can't hide it.
+function resolveLink(href: string, base: string): string | null {
+  try {
+    // eslint-disable-next-line no-control-regex
+    const url = new URL(href.replace(/[\t\r\n]/g, "").replace(/^[\u0000-\u0020]+/, ""), base);
+    return /^https?:$/.test(url.protocol) && url.origin + "/" !== NO_BASE ? url.href : null;
+  } catch {
+    return null;
   }
-  return { text: textOf(root), linkPairs };
 }
 
-export type ParsedMail = { headers: string; text: string; linkPairs: LinkPair[]; attachments: string[] };
+function readHtml(html: string): { text: string; linkPairs: LinkPair[]; partial: boolean } {
+  const root = parse(html, { scriptingEnabled: false }) as unknown as Node;
+  const linkPairs: LinkPair[] = [];
+  const stack = [root];
+  const attr = (node: Node, name: string) => node.attrs?.find((a) => a.name === name)?.value.trim();
+  let base = NO_BASE;
+  let seen = 0;
+  let partial = false;
+  while (stack.length) {
+    if (++seen > MAX_NODES) {
+      partial = true;
+      break;
+    }
+    const node = stack.pop()!;
+    if (node.nodeName === "base") base = resolveLink(attr(node, "href") ?? "", NO_BASE) ?? base;
+    const href = node.nodeName === "a" || node.nodeName === "area" ? attr(node, "href") : undefined;
+    const link = href ? resolveLink(href, base) : null;
+    if (link && linkPairs.length >= MAX_ANCHORS) partial = true;
+    else if (link) linkPairs.push({ href: link.slice(0, 2000), text: node.nodeName === "area" ? (attr(node, "alt") ?? "").slice(0, 500) : textOf(node, 500, ANCHOR_NODES).slice(0, 500) });
+    pushChildren(stack, node);
+  }
+  return { text: textOf(root, Infinity, MAX_NODES), linkPairs, partial };
+}
+
+export type ParsedMail = { headers: string; text: string; linkPairs: LinkPair[]; attachments: string[]; partial: boolean }; // partial: part of it couldn't be read
 
 export async function parseRawMail(raw: string): Promise<ParsedMail> {
   const split = raw.search(/\r?\n\r?\n/);
   const mail = await simpleParser(raw, { skipImageLinks: true, skipTextLinks: true });
-  const html = mail.html ? readHtml(mail.html) : { text: "", linkPairs: [] };
+  let html: ReturnType<typeof readHtml> = { text: "", linkPairs: [], partial: false };
+  try {
+    if (mail.html) html = readHtml(mail.html);
+  } catch {
+    html.partial = true; // fall back to the plain part and say so
+  }
   const plain = mail.text?.trim() ?? "";
   return {
     headers: split < 0 ? raw : raw.slice(0, split),
@@ -108,5 +166,6 @@ export async function parseRawMail(raw: string): Promise<ParsedMail> {
     text: [html.text, plain.replace(/\s+/g, " ") === html.text ? "" : plain].filter(Boolean).join("\n"),
     linkPairs: html.linkPairs,
     attachments: mail.attachments.flatMap((a) => a.filename ?? []),
+    partial: html.partial,
   };
 }

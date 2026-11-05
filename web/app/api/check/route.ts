@@ -57,13 +57,16 @@ export async function POST(request: Request) {
   const headerBlock = parsed?.headers ?? input.headers;
   const headers = headerBlock ? analyzeHeaders(headerBlock.slice(0, MAX_HEADERS)) : null;
   const sender = input.sender || headers?.from || "";
-  const linkPairs = [...(input.linkPairs ?? []), ...(parsed?.linkPairs ?? [])].slice(0, MAX_LINKS * 3);
+  // Duplicates count once, so one link repeated can't use up the limit.
+  const uniquePairs = [...new Map([...(input.linkPairs ?? []), ...(parsed?.linkPairs ?? [])].map((l) => [`${l.href}\n${l.text}`, l])).values()];
+  const linkPairs = uniquePairs.slice(0, MAX_LINKS * 3);
   const files = [...attachments, ...(parsed?.attachments ?? [])];
   // Real link targets come first, so text can't pad them out of the limit.
-  const everyLink = [...new Set([...linkPairs.map((l) => l.href), ...findLinks(parsed?.text ?? text, links)])];
+  const everyLink = [...new Set([...uniquePairs.map((l) => l.href), ...findLinks(parsed?.text ?? text, links)])];
   const allLinks = everyLink.slice(0, MAX_LINKS);
   const unread: Flag[] = [];
-  if (everyLink.length > MAX_LINKS) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: `This mail has ${everyLink.length} links, too many to check them all.` });
+  if (parsed?.partial) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: "This mail is built in a way that stopped us reading all of it." });
+  if (everyLink.length > MAX_LINKS || uniquePairs.length > linkPairs.length) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: `This mail has ${everyLink.length} links, too many to check them all.` });
   if (parsed && parsed.text.length > MAX_TEXT) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: "This mail is too long to read in full." });
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "local";

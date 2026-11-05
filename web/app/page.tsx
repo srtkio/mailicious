@@ -19,7 +19,7 @@ const SAMPLES = [
   {
     label: "Try a normal invite",
     sender: "careers@infosys.com",
-    text: "Your interview is on Monday at 10am. Stipend: pay of ₹20,000 per month.\n\nApply for your slot on the careers portal. Never share your OTP or password with anyone.",
+    text: "Your Infosys interview is on Monday at 10am. Stipend: pay of ₹20,000 per month.\n\nApply for your slot on the careers portal. Never share your OTP or password with anyone.",
   },
 ];
 

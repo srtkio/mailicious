@@ -50,6 +50,6 @@ export async function POST(request: Request) {
     ...result,
     evidence: { ...result.evidence, company: company?.summary ?? null },
     sources: company?.sources ?? [],
-    mode: company ? "full" : "limited",
+    mode: claims && (company || !claims.company) ? "full" : "limited", // no company named means nothing to look up, not a failure
   });
 }

@@ -25,6 +25,13 @@ describe("AI time budget", () => {
   });
 });
 
+describe("mode", () => {
+  it("counts as a full check when the mail names no company to look up", async () => {
+    expect((await (await call("4.4.4.4")).json()).mode).toBe("full");
+    vi.mocked(extractClaims).mockClear();
+  });
+});
+
 describe("AI rate limit", () => {
   it("stops calling the AI past the limit but still answers from the rules", async () => {
     for (let i = 0; i < 20; i++) await call("1.1.1.1");

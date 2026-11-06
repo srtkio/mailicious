@@ -78,7 +78,7 @@ export function ScrollXray() {
             <motion.span aria-hidden style={{ scaleX: fill }} className="mt-3 block h-1 origin-left rounded-full bg-flame" />
             <AnimatePresence>
               {stamped && (
-                <motion.span initial={calm ? false : { opacity: 0, scale: 1.8, rotate: -9 }} animate={{ opacity: 1, scale: 1, rotate: -5 }} exit={{ opacity: 0 }} transition={{ type: "spring", stiffness: 520, damping: 22 }} className="absolute -right-1 -top-5 z-20 border-4 border-high bg-white px-4 py-1.5 font-display text-2xl font-extrabold text-high shadow-xl sm:text-3xl">
+                <motion.span initial={calm ? false : { opacity: 0, scale: 1.8, rotate: -9 }} animate={{ opacity: 1, scale: 1, rotate: -5 }} exit={{ opacity: 0 }} transition={{ type: "spring", stiffness: 520, damping: 22 }} className="absolute bottom-10 right-2 z-20 border-4 border-high bg-white px-4 py-1.5 font-display text-2xl font-extrabold text-high shadow-xl sm:-right-1 sm:-top-5 sm:bottom-auto sm:text-3xl">
                   Likely fake
                 </motion.span>
               )}

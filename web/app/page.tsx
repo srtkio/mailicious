@@ -295,7 +295,7 @@ export default function Home() {
           <div className="relative mx-auto w-full max-w-6xl px-4 pb-8 pt-20 sm:px-8">
             <Reveal>
               <p className="font-bold text-flame">Stand-outs</p>
-              <h2 id="standouts-title" className="mt-2 max-w-3xl font-display text-4xl font-extrabold leading-tight sm:text-5xl">
+              <h2 id="standouts-title" className="mt-2 max-w-3xl text-balance font-display text-4xl font-extrabold leading-tight sm:text-5xl">
                 Three things a spam filter can&apos;t do.
               </h2>
             </Reveal>

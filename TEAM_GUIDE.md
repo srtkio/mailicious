@@ -30,6 +30,10 @@ There are three pieces, all using one engine:
 | Placement-cell dashboard, reporting and campus blocklist (`web/lib/store.ts`) | Built at `/dashboard`, needs the Supabase keys, `ADMIN_PASSWORD` and `supabase/schema.sql` run once |
 | Technology page (`web/app/technology/page.tsx`) | Built, not linked from the home page yet |
 | Pitch deck | Done: 10 slides, private Claude artifact held by the lead |
+| Motion | Done: opening animation, live hero, scroll X-ray, animated popup |
+| Scam DNA | Done: tested end to end against the real database |
+| Offer Letter X-ray | Done: runs in the browser, sample letter on the site |
+| Damage Control | Done: on the site and at /rescue, linked from the popup |
 
 ## Run it
 

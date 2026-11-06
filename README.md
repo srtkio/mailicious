@@ -26,6 +26,10 @@ MAILicious catches fake placement mails and other scams inside Gmail, before a s
 - **Toolbar report:** Gmail keeps a short line or banner, and the full plain-English report opens from the extension icon, with a verdict badge on it.
 - **Scam Drill:** an interactive game on the website that trains students to spot fakes, using fictional mails.
 - **Live Campus Radar:** real totals of checks and attack types, with no sender or mail content.
+- **Scam DNA:** a 64-bit fingerprint of a mail's script. Once the placement cell marks a scam fake, rewrites from new addresses are caught too. Only the fingerprint is stored.
+- **Offer Letter X-ray:** checks a PDF in the browser, including the GSTIN check digit, CIN structure, what made the file, dates, payment demands and hidden scripts. The letter is never uploaded.
+- **Damage Control:** tap what happened and get an ordered rescue plan, starting with the 1930 helpline, plus a ready-to-file complaint.
+- **Motion:** opening animation, live silk hero, pinned scroll X-ray and an animated popup with a scanning state, verdict ring and script barcode. All of it respects the reduced-motion setting.
 
 ## Architecture
 
@@ -157,6 +161,10 @@ Before text goes to Gemini, we hide PAN-shaped IDs, password values, codes near 
 - All students share one free Gemini key, so busy periods drop to a labelled basic check.
 - After 20 AI checks a minute from one IP address, results drop to rules and link checks only. The count is per server instance, so it slows abuse but won't fully stop it.
 - Rules are deliberately cautious: they'd rather flag a real mail than miss a scam.
+- Scam DNA can't match a complete rewrite, and it was tuned on our test mails, not on live campus mail.
+- Someone could add scam wording to a real mail to get its fingerprint signed. That still needs a person to mark their sender fake, a match on clean words only reaches Check first, and marking the sender genuine undoes it.
+- A valid GSTIN or CIN only proves the number is well formed, not that it belongs to the company. A careful forger can copy a real number and clear the file's metadata.
+- Damage Control is guidance. It can't recover money itself.
 
 ### Accuracy
 

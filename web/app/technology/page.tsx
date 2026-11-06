@@ -164,6 +164,47 @@ const SECTIONS: Section[] = [
     ],
     limit: "The dashboard uses one shared password, not accounts, which suits a pilot. Rate limits are counted per server instance, so they slow abuse rather than stop it. Dashboard totals count the latest 2,000 events.",
   },
+  {
+    id: "scam-dna",
+    title: "Scam DNA",
+    does: "Recognises a scam's script, so a scammer who changes their address, the company name or the amount is still caught. It's what makes one report outlast a blocklist.",
+    how: [
+      "Each mail becomes a 64-bit SimHash. Zero-width characters are removed and styled letters flattened, then links and addresses are dropped, because those are what scammers change first.",
+      "Words every placement mail shares, like internship and offer, are left out, so the fingerprint describes the script rather than the topic. Single words count three times as much as word pairs, because a rewrite keeps its words longer than their order.",
+      "Two mails count as one script when at most 14 of the 64 bits differ. Every pair of unrelated test mails is further apart than that, and a test enforces it. In our test, the closest pair was 18 bits apart and the reworded versions 11 to 12.",
+      "A report stores only the fingerprint, which can't be turned back into the mail. Once the placement cell marks that sender fake, its two most-reported fingerprints join the campus list.",
+      "The server signs each fingerprint for a day, and only for a mail whose own words look risky, so a report can't simply claim a real mail's fingerprint.",
+      "A match gives SCAM_DNA at High when the mail's own words are risky too, and Medium when they aren't, so a match alone can never call a clean mail fake. Proven college offices and proven senders the cell marked genuine are exempt.",
+    ],
+    limit: "A complete rewrite gets a new fingerprint and has to be caught by the other checks. Someone could add scam wording to a real mail to get its fingerprint signed, so a person must still mark that sender fake, the match can only reach Check first, and marking the sender genuine undoes it.",
+  },
+  {
+    id: "letter-xray",
+    title: "Offer Letter X-ray",
+    does: "Tests a PDF offer letter itself, because that's often the part that convinces a student. It runs entirely in the browser, so the letter is never uploaded.",
+    how: [
+      "The GSTIN's last character is a check digit. It's recomputed with the GST base-36 formula, so a made-up number nearly always fails.",
+      "A CIN spells out its own facts: listed or unlisted, state, year founded and company type. Each part is tested, and a missing CIN is noted, because Indian companies must print it on business letters.",
+      "The file's own metadata shows what made it. A design or online PDF tool such as Canva is a warning, and the creation date is compared with the date written on the letter.",
+      "The text is searched for UPI IDs, payment demands, free-mail contacts and requests for OTPs or ID. Any payment demand fails the letter.",
+      "The raw file is scanned for scripts, launch actions and embedded files, which a PDF reader would normally hide.",
+      "Text comes from pdf.js, loaded only when a letter is opened. Anything past 200,000 characters isn't read, and the letter then gets a warning, so padding can't earn a clean result.",
+    ],
+    limit: "A valid GSTIN or CIN only proves the number is well formed, not that it belongs to this company, so confirm at gst.gov.in or mca.gov.in. Careful forgers can copy a real number and clear the metadata, and a letter that's only an image can't be read.",
+  },
+  {
+    id: "damage-control",
+    title: "Damage Control",
+    does: "Helps after a student has already paid, shared a code or clicked. Most tools stop at the warning, and this is the moment a student most needs clear steps.",
+    how: [
+      "The student taps what happened, and the steps for each answer are merged, deduplicated and sorted into right now, within the hour, and today.",
+      "Paying money puts the 1930 national cybercrime helpline first, then the bank, then cybercrime.gov.in.",
+      "A complaint is written from what the student entered, ready to copy into the portal or share on WhatsApp.",
+      "From the extension, the sender and attack type arrive in the address's #fragment, which browsers never send to any server.",
+      "It's built into the website and opens only on request, so it adds no alarms.",
+    ],
+    limit: "It's guidance, not legal or financial advice, and it can't recover money itself. How much a bank or the helpline can do depends on the case and on how quickly it's reported.",
+  },
 ];
 
 const ACCURACY = [

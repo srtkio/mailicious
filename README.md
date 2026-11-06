@@ -1,16 +1,23 @@
-# PlacementShield (Arthakram PS5)
+# PlacementShield
 
-Read `TEAM_GUIDE.md` first: setup, roles, status and how the engine works. `TEAM_PLAN.md` is the full original plan.
+Catches fake placement mails and other scams inside Gmail, before a student replies, pays or clicks. Built for Arthakram PS5, "The Fake HR Email".
 
-- `web/`: Next.js app (checker, demo inbox, dashboard, `POST /api/check`)
-  - `npm install && npm run dev` → http://localhost:3000
-  - `npm test`: rules-engine fixtures
-  - Contract: `web/lib/types.ts`. Sample result to build against: `web/lib/mock-result.ts`
-  - Engine: `web/lib/engine.ts` (pure, no deps; the extension can import or copy it)
-- `extension/`: Chrome MV3 extension (P2). Call the API from the background service worker; `host_permissions` covers localhost, so add the deployed URL later.
+**Live:** https://placementshield.vercel.app
 
-Try it:
+- **Gmail extension** (`extension/`): checks each mail you open, with no Google sign-in. Warns before a risky click and when you type an OTP, Aadhaar, PAN or card number into a reply.
+- **Website** (`web/`): paste a mail, Gmail's Show original, or an `.eml` file, and get a verdict with a security report. Also offers the extension download.
+- **Placement-cell dashboard** (`/dashboard`): students report senders, and marking one fake warns every student.
+
+Read `TEAM_GUIDE.md` for how it works, its limits and its accuracy results. `TEAM_PLAN.md` is the original plan.
+
+## Run it
+
 ```
-curl -s localhost:3000/api/check -H 'content-type: application/json' \
-  -d '{"text":"Microsoft internship! Share the OTP to confirm.","sender":"hr.ms@gmail.com"}'
+cd web
+npm install
+npm run dev
 ```
+
+Open http://localhost:3000. It works without keys, using rules and link checks only. Copy `web/.env.example` to `web/.env.local` to turn on the AI and web search. The dashboard also needs `supabase/schema.sql` run once.
+
+`npm test` runs the tests. After changing `extension/`, run `npm run pack:extension` to rebuild the download.

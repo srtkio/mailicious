@@ -91,11 +91,20 @@ describe("analyzeHeaders", () => {
     expect(codes(head("spf=pass; dkim=pass; dmarc=pass", "\nReply-To: <a@acme.example>, <b@evil.example>"))).toEqual(["REPLY_TO_MISMATCH"]);
   });
   it("treats a different reply domain on a no-reply address as a note", () => {
-    const noreply = (reply: string, auth = "spf=pass; dkim=pass; dmarc=pass") =>
+    const noreply = (reply: string, auth = "spf=pass; dkim=pass; dmarc=pass header.from=school.in") =>
       analyzeHeaders(`Authentication-Results: mx; ${auth}\nFrom: School <no-reply@school.in>\nReply-To: ${reply}`);
     expect(noreply("<help@school.co>").flags[0]).toMatchObject({ code: "REPLY_TO_MISMATCH", level: "low" });
-    expect(noreply("<help@school.co>", "spf=pass; dkim=pass; dmarc=fail").flags.some((f) => f.level === "high")).toBe(true);
+    expect(noreply("<help@school.co>", "spf=pass; dkim=pass; dmarc=fail header.from=school.in").flags.some((f) => f.level === "high")).toBe(true);
     expect(analyzeHeaders("Authentication-Results: mx; dmarc=pass\nFrom: hr@school.in\nReply-To: <x@evil.example>").flags[0].level).toBe("medium");
+  });
+  it("needs the full sender proof for the no-reply note, not just a DMARC pass", () => {
+    const base = (hf: string) => analyzeHeaders(`Authentication-Results: mx; dkim=pass; spf=pass; dmarc=pass header.from=${hf}\nFrom: no-reply@school.in\nReply-To: <help@evil.example>`);
+    expect(base("school.in").flags[0].level).toBe("low");
+    expect(base("other.example").flags[0].level).toBe("medium");
+  });
+  it("calls the reply address unreadable if any part of it is", () => {
+    const r = analyzeHeaders("Authentication-Results: mx; dmarc=pass\nFrom: hr@acme.example\nReply-To: <a@acme.example>, garbage, <b@acme.example>");
+    expect(r.flags.map((f) => f.code)).toContain("REPLY_TO_MISMATCH");
   });
   it("never passes a reply address it couldn't read, or a sender it couldn't parse", () => {
     const r = analyzeHeaders('Authentication-Results: mx; dmarc=pass\nFrom: hr@acme.example\nReply-To: "unclosed <x@evil.example>');

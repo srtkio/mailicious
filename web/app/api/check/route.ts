@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   const headerBlock = parsed?.headers ?? input.headers;
   const headers = headerBlock ? analyzeHeaders(headerBlock.slice(0, MAX_HEADERS)) : null;
   // Trust needs the strict address; warnings use the loose one, so a broken From can't dodge the look-alike and blocklist checks.
-  const sender = addressOf(input.sender) || looseAddress(input.sender) || headers?.from || "";
+  const sender = addressOf(input.sender) || headers?.from || looseAddress(input.sender) || headers?.looseFrom || "";
   // Duplicates count once, so one link repeated can't use up the limit.
   const uniquePairs = [...new Map([...(input.linkPairs ?? []), ...(parsed?.linkPairs ?? [])].map((l) => [`${l.href}\n${l.text}`, l])).values()];
   const linkPairs = uniquePairs.slice(0, MAX_LINKS * 3);
@@ -74,12 +74,17 @@ export async function POST(request: Request) {
   ]);
   const target = reportTarget(sender);
   if (target?.includes("@") && campus.fake.includes(target)) unread.push({ code: "BLOCKED_SENDER", level: "high", text: "Your placement cell already marked this address as fake." });
+  // A different reply domain only stays a quiet note when the mail doesn't ask you to reply.
+  const replyAsk = /\b(reply|respond|write back|get back to|send (us|me)|e-?mail us|mail us|contact us at)\b/i.test(text);
+  const headerFlags = (headers?.flags ?? []).map((f) =>
+    f.code === "REPLY_TO_MISMATCH" && f.level === "low" && replyAsk ? { ...f, level: "medium" as const, text: f.text.replace(/, but this is a no-reply address, so it matters little\./, ", and this mail asks you to reply.") } : f,
+  );
   const extra = [
     ...unread,
     ...signalFlags(claims?.signals ?? []),
     ...(company?.flags ?? []),
     ...linkFlags,
-    ...(headers?.flags ?? []),
+    ...headerFlags,
     ...intel.flags,
     ...deepRules({ sender, links: allLinks, linkPairs, attachments: files }),
   ];

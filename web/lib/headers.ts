@@ -2,7 +2,7 @@
 // the receiving mail server's own verdict on whether the sender is genuine.
 import { simpleParser } from "mailparser";
 import { parse } from "parse5";
-import { addressOf, registrable, stripComments } from "./engine";
+import { addressOf, looseAddress, registrable, stripComments } from "./engine";
 import type { Flag, LinkPair, SecurityCheck } from "./types";
 
 const headerValues = (block: string, name: string): string[] =>
@@ -42,14 +42,16 @@ function authResults(value: string): Record<string, string> {
   return found;
 }
 
-export type HeaderReport = { from: string; authenticated: boolean; flags: Flag[]; checks: SecurityCheck[] }; // authenticated: DMARC proved the From domain
+export type HeaderReport = { from: string; looseFrom: string; authenticated: boolean; flags: Flag[]; checks: SecurityCheck[] }; // authenticated: DMARC proved the From domain
 
 export function analyzeHeaders(block: string): HeaderReport {
   const from = address(headerValues(block, "from")[0]);
-  const replyRaw = headerValues(block, "reply-to")[0] ?? "";
+  const replyRaw = headerValues(block, "reply-to").join(",");
   const replyParsed = stripComments(replyRaw);
-  const replyTo = replyParsed.malformed ? [] : replyParsed.clean.split(",").map(address).filter(Boolean);
-  const replyUnreadable = replyRaw.trim() !== "" && (replyParsed.malformed || replyTo.length === 0); // never a quiet pass
+  const replyParts = replyParsed.clean.split(",").map((p) => p.trim()).filter(Boolean).map(address);
+  const replyTo = replyParsed.malformed ? [] : replyParts.filter(Boolean);
+  // One unreadable address is enough: a quiet pass would hide where the reply might go.
+  const replyUnreadable = replyRaw.trim() !== "" && (replyParsed.malformed || replyParts.length === 0 || replyParts.some((a) => !a));
   // Only the top one counts: it's the receiver's. Anything below can be forged by the sender.
   const auth = headerValues(block, "authentication-results")[0] ?? "";
   const results = authResults(auth);
@@ -72,10 +74,19 @@ export function analyzeHeaders(block: string): HeaderReport {
     checks.push({ label: "Sender authentication", status: "pass", detail: summary });
   }
 
+  // Proven only with one clear From address, on the domain every DMARC pass actually checked.
+  const fromHeaders = headerValues(block, "from");
+  const addresses = stripComments(fromHeaders.join(",")).clean.match(/@/g)?.length ?? 0;
+  const passes = stripComments(auth).clean.split(";").map((s) => s.match(/^\s*dmarc\s*=\s*pass\b[^]*?\bheader\.from=([^\s;]+)/i)).filter((m) => m !== null);
+  if (!from && fromHeaders.some((v) => v.includes("@")))
+    flags.push({ code: "MALFORMED_SENDER", level: "medium", text: "The sender's address is written in an unusual way, so we can't verify who sent this." });
+  const aligned = passes.length > 0 && passes.every((m) => registrable(m[1].toLowerCase()) === registrable(domainOf(from)));
+  const authenticated = dmarc === "pass" && EMAIL.test(from) && fromHeaders.length === 1 && addresses === 1 && aligned;
+
   const elsewhere = from ? replyTo.find((a) => registrable(domainOf(a)) !== registrable(domainOf(from))) : undefined;
   // Nobody replies to a no-reply address, so a different reply domain there is a note, not an alarm. DMARC must pass.
   const noReply = /^(no-?reply|do-?not-?reply|donotreply|notifications?|alerts?|mailer-daemon|bounces?)([._+-]|$)/.test(from.split("@")[0]);
-  const quiet = noReply && dmarc === "pass";
+  const quiet = noReply && authenticated; // DMARC alone only proves who owns the domain, so the full sender proof is needed
   if (replyUnreadable) {
     flags.push({ code: "REPLY_TO_MISMATCH", level: "medium", text: "The reply address couldn't be read, so replies might go somewhere else." });
     checks.push({ label: "Reply address", status: "fail", detail: "The reply address couldn't be read." });
@@ -89,14 +100,7 @@ export function analyzeHeaders(block: string): HeaderReport {
   } else if (from) {
     checks.push({ label: "Reply address", status: "pass", detail: "Replies go back to the sender's own domain." });
   }
-  // Proven only with one clear From address, on the domain every DMARC pass actually checked.
-  const fromHeaders = headerValues(block, "from");
-  const addresses = stripComments(fromHeaders.join(",")).clean.match(/@/g)?.length ?? 0;
-  const passes = stripComments(auth).clean.split(";").map((s) => s.match(/^\s*dmarc\s*=\s*pass\b[^]*?\bheader\.from=([^\s;]+)/i)).filter((m) => m !== null);
-  if (!from && fromHeaders.some((v) => v.includes("@")))
-    flags.push({ code: "MALFORMED_SENDER", level: "medium", text: "The sender's address is written in an unusual way, so we can't verify who sent this." });
-  const aligned = passes.length > 0 && passes.every((m) => registrable(m[1].toLowerCase()) === registrable(domainOf(from)));
-  return { from, authenticated: dmarc === "pass" && EMAIL.test(from) && fromHeaders.length === 1 && addresses === 1 && aligned, flags, checks };
+  return { from, looseFrom: looseAddress(headerValues(block, "from").join(",")), authenticated, flags, checks };
 }
 
 type Node = { nodeName: string; namespaceURI?: string; value?: string; attrs?: { name: string; value: string }[]; childNodes?: Node[] };

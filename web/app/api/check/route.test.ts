@@ -26,6 +26,18 @@ describe("AI time budget", () => {
   });
 });
 
+describe("reply note", () => {
+  const post = (text: string) => {
+    const headers = "Authentication-Results: mx; dkim=pass; spf=pass; dmarc=pass header.from=school.in\r\nFrom: School <no-reply@school.in>\r\nReply-To: <help@school.co>";
+    return POST(new Request("http://x/api/check", { method: "POST", headers: { "x-forwarded-for": "8.8.8.8" }, body: JSON.stringify({ text, headers }) })).then((r) => r.json());
+  };
+  it("stays a note unless the mail asks you to reply", async () => {
+    const level = async (t: string) => (await post(t)).flags.find((f: { code: string }) => f.code === "REPLY_TO_MISMATCH")?.level;
+    expect(await level("Your lecture is today at 5.")).toBe("low");
+    expect(await level("Please reply to confirm your seat today.")).toBe("medium");
+  });
+});
+
 describe("mode", () => {
   it("counts as a full check when the mail names no company to look up", async () => {
     expect((await (await call("4.4.4.4")).json()).mode).toBe("full");

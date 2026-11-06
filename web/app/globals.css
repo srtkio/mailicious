@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-paper: #eaf0e8;
-  --color-sheet: #f7faf5;
-  --color-rule: #c9d8ce;
-  --color-ink: #16233f;
-  --color-muted: #4a5870;
-  --color-pad: #2a2f8f;
-  --color-night: #0f1a35;
-  --color-night-2: #1a2a50;
-  --color-mint: #cfe8da;
-  --color-high: #b3122a;
-  --color-medium: #8a5200;
-  --color-low: #1c6b48;
+  --color-paper: #ffffff;
+  --color-sheet: #f7f5f2;
+  --color-rule: #e7e2db;
+  --color-ink: #0b0b0b;
+  --color-muted: #57534e;
+  --color-pad: #c2410c;
+  --color-night: #0a0a0a;
+  --color-night-2: #1c1917;
+  --color-flame: #ff6a00;
+  --color-high: #c81e1e;
+  --color-medium: #a15c00;
+  --color-low: #15803d;
   --font-display: var(--font-bricolage);
   --font-sans: var(--font-atkinson);
 }
@@ -52,4 +52,16 @@ body {
   .stamp {
     animation: none;
   }
+}
+
+/* React Flow draws its own edges; the page's motion rule has to reach them. */
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__edge-path {
+    animation: none !important;
+  }
+}
+
+.flow-static .react-flow__pane,
+.flow-static .react-flow__node {
+  cursor: default !important;
 }

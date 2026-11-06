@@ -41,7 +41,7 @@ export default function DashboardPage() {
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-8">
       <Link href="/" className="font-display text-xl font-extrabold">
-        PlacementShield
+        MAILicious
       </Link>
       <h1 className="mt-6 font-display text-3xl font-bold">Placement cell dashboard</h1>
       {error && (
@@ -56,7 +56,7 @@ export default function DashboardPage() {
             Password
           </label>
           <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="mt-2 block w-full border border-rule bg-sheet px-4 py-2 text-base" />
-          <button type="submit" disabled={busy} className="mt-4 bg-pad px-6 py-3 font-bold text-white hover:bg-ink disabled:opacity-60">
+          <button type="submit" disabled={busy} className="mt-4 bg-flame px-6 py-3 font-bold text-black hover:bg-black hover:text-white disabled:opacity-60">
             {busy ? "Opening…" : "Open dashboard"}
           </button>
         </form>
@@ -107,10 +107,16 @@ export default function DashboardPage() {
           <section className="mt-10 border-t border-rule pt-6">
             <h2 className="font-display text-2xl font-bold">Attacks seen</h2>
             {data.attacks.length === 0 && <p className="mt-4">None yet.</p>}
-            <ul className="mt-3 space-y-1">
+            <ul className="mt-4 max-w-2xl space-y-3">
               {data.attacks.map((a) => (
-                <li key={a.name}>
-                  <span className="font-bold">{a.count}</span> {a.name}
+                <li key={a.name} title={`${a.count} ${a.name}`}>
+                  <span className="flex justify-between gap-3">
+                    <span>{a.name}</span>
+                    <span className="font-bold">{a.count}</span>
+                  </span>
+                  <span className="mt-1 block h-2 rounded-sm bg-rule">
+                    <span className="block h-2 rounded-sm bg-flame" style={{ width: `${(a.count / data.attacks[0].count) * 100}%` }} />
+                  </span>
                 </li>
               ))}
             </ul>

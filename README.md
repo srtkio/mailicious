@@ -1,4 +1,4 @@
-# PlacementShield
+# MAILicious
 
 Catches fake placement mails and other scams inside Gmail, before a student replies, pays or clicks. Built for Arthakram PS5, "The Fake HR Email".
 

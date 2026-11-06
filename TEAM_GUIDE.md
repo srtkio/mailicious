@@ -1,4 +1,4 @@
-# PlacementShield guide
+# MAILicious guide
 
 Start here. This is the one page for what we're building, how to run it and what's left. If something changes, update this file in the same commit.
 
@@ -36,7 +36,7 @@ You need Node and git.
 
 ```
 git clone https://github.com/srtkio/placementshield.git
-cd placementshield/web
+cd mailicious/web
 npm install
 npm run dev
 ```

@@ -1,8 +1,8 @@
 // Runs inside Gmail. Checks every mail the student opens while the switch is on, and shows the result on the mail.
 // Only the open mail's text, sender, links and headers leave the browser.
 (() => {
-  if (window.__placementShield) return;
-  window.__placementShield = true;
+  if (window.__mailicious) return;
+  window.__mailicious = true;
 
   // Only for the inbox dot, which is judged on the row alone. Opened mails are always checked.
   const PLACEMENT = /\b(offer letter|job offer|internship|intern|placement|hiring|recruit\w*|job opening|job opportunity|selected for|shortlisted|interview|stipend|salary|ctc|career\w*)\b/i;
@@ -14,34 +14,34 @@
     [/\b[A-Z]{5}\d{4}[A-Z]\b/, "a PAN number"],
   ];
   const STYLE = {
-    high: { label: "Likely fake", color: "#b3122a", tint: "#fbeaec" },
-    medium: { label: "Check first", color: "#8a5200", tint: "#fbf2e3" },
-    low: { label: "No red flags", color: "#1c6b48", tint: "#e8f3ec" },
+    high: { label: "Likely fake", color: "#c81e1e", tint: "#fbeaec" },
+    medium: { label: "Check first", color: "#a15c00", tint: "#fbf2e3" },
+    low: { label: "No red flags", color: "#15803d", tint: "#e8f3ec" },
   };
   const CSS = `
-    :host { all: initial; display: block; font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #16233f; }
+    :host { all: initial; display: block; font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #0b0b0b; }
     .card { border-left: 4px solid var(--c); background: var(--t); padding: 12px 14px; margin: 8px 0 12px; border-radius: 4px; }
     .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
     .label { font-weight: 800; font-size: 16px; color: var(--c); }
-    .attack { color: #4a5870; }
+    .attack { color: #57534e; }
     ul { margin: 6px 0; padding-left: 18px; }
     .next { font-weight: 700; margin: 6px 0 0; }
     details { margin-top: 8px; }
-    summary { cursor: pointer; color: #2a2f8f; }
+    summary { cursor: pointer; color: #c2410c; }
     .row { display: grid; grid-template-columns: 16px 1fr; gap: 6px; margin-top: 4px; }
-    a { color: #2a2f8f; }
+    a { color: #c2410c; }
     .pill { display: inline-block; color: var(--c); font-size: 12px; margin: 4px 0; }
     details { font-size: 13px; margin-bottom: 8px; }
-    .overlay { position: fixed; inset: 0; z-index: 2147483647; background: rgba(22, 35, 63, .55); display: grid; place-items: center; padding: 16px; }
+    .overlay { position: fixed; inset: 0; z-index: 2147483647; background: rgba(0, 0, 0, .6); display: grid; place-items: center; padding: 16px; }
     .box { background: #fff; max-width: 420px; padding: 20px; border-radius: 6px; }
-    .box h2 { margin: 0 0 8px; font-size: 18px; color: #b3122a; }
+    .box h2 { margin: 0 0 8px; font-size: 18px; color: #c81e1e; }
     .box code { word-break: break-all; }
     .actions { display: flex; gap: 10px; margin-top: 14px; }
-    button { font: inherit; padding: 8px 14px; border: 1px solid #2a2f8f; background: #fff; color: #2a2f8f; border-radius: 4px; cursor: pointer; }
-    button.main { background: #2a2f8f; color: #fff; }
+    button { font: inherit; padding: 8px 14px; border: 1px solid #c2410c; background: #fff; color: #c2410c; border-radius: 4px; cursor: pointer; }
+    button.main { background: #ff6a00; border-color: #0a0a0a; color: #0a0a0a; }
     button.report { margin-top: 8px; padding: 5px 10px; }
-    button:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid #2a2f8f; outline-offset: 2px; }
-    .toast { position: fixed; right: 20px; bottom: 20px; z-index: 2147483647; max-width: 340px; background: #b3122a; color: #fff; padding: 12px 14px; border-radius: 6px; }
+    button:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid #c2410c; outline-offset: 2px; }
+    .toast { position: fixed; right: 20px; bottom: 20px; z-index: 2147483647; max-width: 340px; background: #c81e1e; color: #fff; padding: 12px 14px; border-radius: 6px; }
   `;
   const MARKS = { pass: "✓", warn: "!", fail: "✕", skip: "–" };
   // Selectors as gmail.js and InboxSDK use them; the second of each pair is InboxSDK's fallback.
@@ -51,7 +51,7 @@
   const attempts = new Map(); // message id -> failed tries
   const MAX_TRIES = 3;
   const CHECK_TIMEOUT_MS = 28000;
-  const FAILED_TEXT = "PlacementShield couldn't check this mail. Refresh Gmail to try again, and be careful until then.";
+  const FAILED_TEXT = "MAILicious couldn't check this mail. Refresh Gmail to try again, and be careful until then.";
   let latest = null;
 
   const el = (tag, cls, text) => {
@@ -62,7 +62,7 @@
   };
   function shadowHost(id) {
     const host = document.createElement("div");
-    host.dataset.placementshield = id;
+    host.dataset.mailicious = id;
     const root = host.attachShadow({ mode: "open" });
     root.append(el("style", "", CSS));
     return { host, root };
@@ -74,7 +74,7 @@
     host.style.setProperty("--c", style.color);
     host.style.setProperty("--t", style.tint);
     if (result.level === "low") {
-      const prefix = result.mode === "limited" ? "PlacementShield did a basic check, because the AI was busy:" : "✓ PlacementShield:";
+      const prefix = result.mode === "limited" ? "MAILicious did a basic check, because the AI was busy:" : "✓ MAILicious:";
       root.append(el("span", "pill", `${prefix} ${result.reasons.join(" ")}`), securityReport(result));
       return host;
     }
@@ -131,7 +131,7 @@
     const box = el("div", "box");
     box.append(
       el("h2", "", unchecked ? "Wait. This mail wasn't checked." : "Wait. This mail looks fake."),
-      el("p", "", unchecked ? "PlacementShield couldn't check this mail, so be sure you trust the sender." : "This link came from a mail PlacementShield flagged. It may steal your details."),
+      el("p", "", unchecked ? "MAILicious couldn't check this mail, so be sure you trust the sender." : "This link came from a mail MAILicious flagged. It may steal your details."),
       el("code", "", url),
     );
     const actions = el("div", "actions");
@@ -148,7 +148,7 @@
   }
 
   function toast(message) {
-    document.querySelector('[data-placementshield="toast"]')?.remove(); // the newest warning is the most specific
+    document.querySelector('[data-mailicious="toast"]')?.remove(); // the newest warning is the most specific
     const { host, root } = shadowHost("toast");
     root.append(el("div", "toast", message));
     document.body.append(host);
@@ -190,7 +190,7 @@
     if (!text && !subject && !body.querySelector("a[href]")) return results.set(id, null);
 
     results.set(id, "pending");
-    showStatus(message, id, "PlacementShield is checking this mail…");
+    showStatus(message, id, "MAILicious is checking this mail…");
     const sender = message.querySelector(".gD[email], td.gF span[email]")?.getAttribute("email") ?? "";
     const anchors = [...body.querySelectorAll("a[href]")].filter((a) => /^https?:/i.test(a.href)).slice(0, 40);
     const linkPairs = anchors.map((a) => ({ text: a.textContent.trim().slice(0, 300), href: a.href.slice(0, 2000) }));
@@ -232,20 +232,20 @@
   }
 
   function clearStatus(message) {
-    message.querySelector('[data-placementshield="status"]')?.remove();
+    message.querySelector('[data-mailicious="status"]')?.remove();
   }
 
   function showStatus(message, id, text) {
     clearStatus(message);
     const { host, root } = shadowHost("status");
-    host.style.setProperty("--c", "#8a5200");
+    host.style.setProperty("--c", "#a15c00");
     root.append(el("span", "pill", text));
     (bodyOf(message)?.parentElement ?? message).prepend(host);
   }
 
   function show(message, id, result) {
     clearStatus(message);
-    if (message.querySelector(`[data-placementshield="${window.CSS.escape(id)}"]`)) return;
+    if (message.querySelector(`[data-mailicious="${window.CSS.escape(id)}"]`)) return;
     (bodyOf(message)?.parentElement ?? message).prepend(card(result, id));
   }
 
@@ -262,8 +262,8 @@
       const words = `${row.querySelector(".bog")?.textContent ?? ""} ${row.querySelector(".y2")?.textContent ?? ""}`;
       if (!PLACEMENT.test(words) || !(RISKY.test(words) || FREE_MAIL.test(sender))) return;
       const dot = el("span", "", "● ");
-      dot.style.color = "#8a5200";
-      dot.title = "PlacementShield: open this mail to check it";
+      dot.style.color = "#a15c00";
+      dot.title = "MAILicious: open this mail to check it";
       row.querySelector(".bog")?.prepend(dot);
     });
   }
@@ -275,7 +275,7 @@
       const id = message.dataset.messageId.replace(/^#/, "");
       const known = results.get(id);
       if (known?.failed) {
-        if (!message.querySelector('[data-placementshield="status"]')) showStatus(message, id, FAILED_TEXT); // Gmail re-renders and drops it
+        if (!message.querySelector('[data-mailicious="status"]')) showStatus(message, id, FAILED_TEXT); // Gmail re-renders and drops it
       } else if (known && known !== "pending") show(message, id, known);
       else checkMessage(message);
     });

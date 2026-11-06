@@ -54,7 +54,7 @@ async function safeBrowsing(urls: string[]): Promise<string[]> {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({
-      client: { clientId: "placementshield", clientVersion: "1.0" },
+      client: { clientId: "mailicious", clientVersion: "1.0" },
       threatInfo: {
         threatTypes: ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE"],
         platformTypes: ["ANY_PLATFORM"],

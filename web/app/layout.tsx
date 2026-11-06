@@ -14,8 +14,8 @@ const atkinson = Atkinson_Hyperlegible({
 });
 
 export const metadata: Metadata = {
-  title: "PlacementShield",
-  description: "Check a suspicious placement mail before you reply, pay or click.",
+  title: "MAILicious",
+  description: "Catch fake placement mails and scams inside Gmail, before you reply, pay or click.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

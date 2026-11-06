@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CampusFlow, InstallFlow, PipelineFlow } from "./flows";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import type { CheckResult, Level, SecurityCheck } from "@/lib/types";
 
@@ -78,12 +79,6 @@ function Icon({ name, className = "h-6 w-6" }: { name: keyof typeof ICONS; class
   );
 }
 
-const STEPS = [
-  ["mail", "Open any mail", "Placement offers, college notices, bills, anything. The extension checks it the moment you open it."],
-  ["shield", "We check the proof", "Who really sent it, where the links go, what it asks for, and whether the offer adds up."],
-  ["check", "You get one answer", "A tick when it's fine. A short warning with one clear next step when it isn't."],
-] as const;
-
 const CHECKS = [
   ["lock", "Real sender proof", "Reads the SPF, DKIM and DMARC results Gmail recorded, so a forged From address can't pass."],
   ["link", "Where links really go", "Catches disguised links, look-alike addresses and short links that hide the destination."],
@@ -93,28 +88,29 @@ const CHECKS = [
   ["clock", "How new the domain is", "A sender domain registered last week isn't a recruiter, however good the mail looks."],
 ] as const;
 
-const INSTALL = [
-  ["Download and unzip", "Save the file below, then double-click it to unzip."],
-  ["Open your extensions page", "Type brave://extensions or chrome://extensions in the address bar, and turn on Developer mode."],
-  ["Click Load unpacked", "Choose the unzipped folder. PlacementShield appears in your toolbar."],
-  ["Open Gmail", "Refresh the page, then open any mail. The card shows up on its own."],
-] as const;
-
 function Mark({ className = "h-8 w-8" }: { className?: string }) {
   return (
     <svg aria-hidden viewBox="0 0 32 32" className={className}>
-      <path d="M16 2l12 4.5v8.2c0 7.1-4.9 11.6-12 15.3C8.9 26.3 4 21.8 4 14.7V6.5L16 2z" fill="#2a2f8f" />
-      <path d="M10.5 15.5l4 4 7-8" fill="none" stroke="#fff" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 2l12 4.5v8.2c0 7.1-4.9 11.6-12 15.3C8.9 26.3 4 21.8 4 14.7V6.5L16 2z" fill="#ff6a00" />
+      <path d="M10.5 15.5l4 4 7-8" fill="none" stroke="#0a0a0a" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+function Wordmark() {
+  return (
+    <span>
+      MAIL<span className="text-flame">icious</span>
+    </span>
   );
 }
 
 function GmailMock() {
   return (
-    <figure aria-label="Example of PlacementShield inside Gmail" className="relative">
+    <figure aria-label="Example of MAILicious inside Gmail" className="relative">
       <span className="stamp absolute -right-2 -top-5 z-10 border-4 border-high bg-white px-3 py-1 font-display text-2xl font-extrabold text-high shadow-lg">Likely fake</span>
       <div className="overflow-hidden rounded-lg bg-white text-ink shadow-2xl ring-1 ring-black/10">
-        <div className="flex items-center gap-1.5 border-b border-rule bg-[#eef2ee] px-4 py-2.5" aria-hidden>
+        <div className="flex items-center gap-1.5 border-b border-rule bg-[#f1eeea] px-4 py-2.5" aria-hidden>
           <span className="h-2.5 w-2.5 rounded-full bg-[#e7776b]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[#e8c05a]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[#6cc08b]" />
@@ -135,13 +131,13 @@ function GmailMock() {
             <p className="mt-2 text-muted">Security report: 5 passed, 3 failed</p>
           </div>
           <div className="mt-4 space-y-2" aria-hidden>
-            <div className="h-2.5 w-11/12 rounded bg-[#e4e9e4]" />
-            <div className="h-2.5 w-4/5 rounded bg-[#e4e9e4]" />
-            <div className="h-2.5 w-3/5 rounded bg-[#e4e9e4]" />
+            <div className="h-2.5 w-11/12 rounded bg-[#ece8e2]" />
+            <div className="h-2.5 w-4/5 rounded bg-[#ece8e2]" />
+            <div className="h-2.5 w-3/5 rounded bg-[#ece8e2]" />
           </div>
         </div>
       </div>
-      <figcaption className="mt-3 text-sm text-mint/80">An example of what you&apos;d see on a fake offer, inside Gmail.</figcaption>
+      <figcaption className="mt-3 text-sm text-white/70">An example of what you&apos;d see on a fake offer, inside Gmail.</figcaption>
     </figure>
   );
 }
@@ -191,16 +187,16 @@ export default function Home() {
       <div className="bg-night text-white">
         <nav aria-label="Main" className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-5 sm:px-8">
           <span className="flex items-center gap-2 font-display text-xl font-extrabold">
-            <Mark /> PlacementShield
+            <Mark /> <Wordmark />
           </span>
           <span className="flex flex-wrap gap-x-6 gap-y-1">
-            <a href="#how" className="text-mint underline-offset-4 hover:underline">
+            <a href="#how" className="text-flame underline-offset-4 hover:underline">
               How it works
             </a>
-            <a href="#check" className="text-mint underline-offset-4 hover:underline">
+            <a href="#check" className="text-flame underline-offset-4 hover:underline">
               Check a mail
             </a>
-            <a href="#extension" className="text-mint underline-offset-4 hover:underline">
+            <a href="#extension" className="text-flame underline-offset-4 hover:underline">
               Get the extension
             </a>
           </span>
@@ -208,20 +204,20 @@ export default function Home() {
 
         <section className="mx-auto grid w-full max-w-6xl items-center gap-14 px-4 pb-20 pt-10 sm:px-8 sm:pt-14 lg:grid-cols-[1.05fr_1fr]">
           <div>
-            <p className="font-bold text-mint">For every student who gets placement mail</p>
+            <p className="font-bold text-flame">For every student who gets placement mail</p>
             <h1 className="mt-3 font-display text-4xl font-extrabold leading-[1.05] sm:text-6xl">Catch the fake offer before you reply, pay or click.</h1>
-            <p className="mt-5 max-w-xl text-lg leading-8 text-mint/90">
-              PlacementShield sits inside Gmail. It checks who really sent a mail, where its links go and what it wants from you, then tells you what to do in five seconds.
+            <p className="mt-5 max-w-xl text-lg leading-8 text-white/80">
+              MAILicious sits inside Gmail. It checks who really sent a mail, where its links go and what it wants from you, then tells you what to do in five seconds.
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
-              <a href="#extension" className="bg-white px-6 py-3 font-bold text-night hover:bg-mint">
+              <a href="#extension" className="bg-flame px-6 py-3 font-bold text-black hover:bg-white">
                 Add it to Gmail
               </a>
-              <a href="#check" className="border border-white/40 px-6 py-3 font-bold text-white hover:bg-white/10">
+              <a href="#check" className="border border-white/50 px-6 py-3 font-bold text-white hover:bg-white hover:text-black">
                 Try the checker
               </a>
             </div>
-            <p className="mt-4 text-mint/80">Free. No Google sign-in. We don&apos;t save your mail.</p>
+            <p className="mt-4 text-white/70">Free. No Google sign-in. We don&apos;t save your mail.</p>
           </div>
           <GmailMock />
         </section>
@@ -231,28 +227,16 @@ export default function Home() {
         <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-8">
           <h2 className="max-w-3xl font-display text-3xl font-bold leading-tight sm:text-4xl">Most scam mails look exactly like real offers. Warnings that cry wolf get ignored.</h2>
           <p className="mt-4 max-w-3xl text-lg text-muted">
-            So PlacementShield stays quiet on normal mail and speaks up only when it has proof: a failed sender check, a disguised link, a request for money or a code. Every warning comes with its evidence and one next step.
+            So MAILicious stays quiet on normal mail and speaks up only when it has proof: a failed sender check, a disguised link, a request for money or a code. Every warning comes with its evidence and one next step.
           </p>
         </section>
 
         <section id="how" className="mx-auto w-full max-w-6xl scroll-mt-4 px-4 pb-16 sm:px-8">
           <h2 className="font-display text-3xl font-bold">How it works</h2>
-          <ol className="mt-8 grid gap-10 md:grid-cols-3">
-            {STEPS.map(([icon, title, body], i) => (
-              <li key={title} className="relative">
-                <span className="flex items-center gap-4">
-                  <span className="grid h-14 w-14 place-items-center rounded-full bg-night text-mint">
-                    <Icon name={icon} className="h-7 w-7" />
-                  </span>
-                  <span className="font-display text-5xl font-extrabold text-rule" aria-hidden>
-                    {i + 1}
-                  </span>
-                </span>
-                <h3 className="mt-4 font-display text-xl font-bold">{title}</h3>
-                <p className="mt-2 text-muted">{body}</p>
-              </li>
-            ))}
-          </ol>
+          <p className="mt-2 max-w-2xl text-muted">Every mail you open runs through the same six checks at once, and comes out as one clear answer.</p>
+          <div className="mt-8 rounded-lg border border-rule bg-sheet p-3 sm:p-6">
+            <PipelineFlow />
+          </div>
         </section>
 
         <section className="bg-sheet">
@@ -276,7 +260,7 @@ export default function Home() {
           <div className="mt-8 grid gap-6 lg:grid-cols-3">
             <div>
               <p className="text-low">
-                <span className="font-bold">✓ PlacementShield:</span> Verified college office. It passed the sender checks.
+                <span className="font-bold">✓ MAILicious:</span> Verified college office. It passed the sender checks.
               </p>
               <h3 className="mt-4 font-display text-lg font-bold">Most mails: one quiet line</h3>
               <p className="text-muted">Nothing to read, nothing to dismiss. Open the report if you&apos;re curious.</p>
@@ -341,7 +325,7 @@ export default function Home() {
               />
 
               <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
-                <button type="submit" disabled={checking} className="bg-pad px-6 py-3 font-bold text-white hover:bg-night disabled:opacity-60">
+                <button type="submit" disabled={checking} className="bg-flame px-6 py-3 font-bold text-black hover:bg-black hover:text-white disabled:opacity-60">
                   {checking ? "Checking…" : "Check this mail"}
                 </button>
                 {SAMPLES.map((s) => (
@@ -365,35 +349,35 @@ export default function Home() {
         <section id="extension" className="scroll-mt-4 bg-night text-white">
           <div className="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 sm:px-8 lg:grid-cols-[1fr_1.1fr]">
             <div>
-              <p className="font-bold text-mint">The Gmail extension</p>
+              <p className="font-bold text-flame">The Gmail extension</p>
               <h2 className="mt-2 font-display text-4xl font-extrabold leading-tight">Stop copying and pasting. Let it watch your inbox.</h2>
-              <p className="mt-4 text-lg leading-8 text-mint/90">Works inside Gmail on Chrome, Brave and Edge. No account, no Google sign-in.</p>
+              <p className="mt-4 text-lg leading-8 text-white/80">Works inside Gmail on Chrome, Brave and Edge. No account, no Google sign-in.</p>
 
               <div className="mt-8 rounded-lg bg-white p-6 text-ink shadow-2xl">
                 <div className="flex items-center gap-4">
                   <Mark className="h-14 w-14" />
                   <div>
-                    <p className="font-display text-xl font-bold">PlacementShield for Gmail</p>
-                    <p className="text-muted">Version 1.0.0, under 20 KB</p>
+                    <p className="font-display text-xl font-bold">MAILicious for Gmail</p>
+                    <p className="text-muted">Version 1.1.0, under 20 KB</p>
                   </div>
                 </div>
-                <a href="/placementshield-extension.zip" download className="mt-5 flex items-center justify-center gap-2 bg-pad px-6 py-4 text-lg font-bold text-white hover:bg-night">
+                <a href="/mailicious-extension.zip" download className="mt-5 flex items-center justify-center gap-2 bg-flame px-6 py-4 text-lg font-bold text-black hover:bg-black hover:text-white">
                   <Icon name="download" className="h-5 w-5" /> Download the extension
                 </a>
                 <p className="mt-3 text-sm text-muted">Chrome, Brave and Edge. It takes about a minute to set up.</p>
               </div>
 
-              <ul className="mt-8 space-y-3 text-mint/90">
+              <ul className="mt-8 space-y-3 text-white/80">
                 <li className="flex gap-3">
-                  <Icon name="check" className="mt-1 h-5 w-5 shrink-0 text-mint" />
+                  <Icon name="check" className="mt-1 h-5 w-5 shrink-0 text-flame" />
                   <span>Only the mail you open is checked. Mail you never open never leaves your browser.</span>
                 </li>
                 <li className="flex gap-3">
-                  <Icon name="check" className="mt-1 h-5 w-5 shrink-0 text-mint" />
+                  <Icon name="check" className="mt-1 h-5 w-5 shrink-0 text-flame" />
                   <span>Long numbers, passwords and codes are hidden before the text reaches Google&apos;s AI.</span>
                 </li>
                 <li className="flex gap-3">
-                  <Icon name="check" className="mt-1 h-5 w-5 shrink-0 text-mint" />
+                  <Icon name="check" className="mt-1 h-5 w-5 shrink-0 text-flame" />
                   <span>One switch in the toolbar turns it off any time.</span>
                 </li>
               </ul>
@@ -401,49 +385,68 @@ export default function Home() {
 
             <div>
               <h3 className="font-display text-2xl font-bold">Set up in four steps</h3>
-              <ol className="mt-6 space-y-5">
-                {INSTALL.map(([title, body], i) => (
-                  <li key={title} className="flex gap-4">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-mint font-display text-lg font-extrabold text-night">{i + 1}</span>
-                    <span>
-                      <span className="block text-lg font-bold">{title}</span>
-                      <span className="block text-mint/85">{body}</span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-              <p className="mt-8 border-l-4 border-mint/50 pl-4 text-mint/85">
+              <div className="mt-6">
+                <InstallFlow />
+              </div>
+              <p className="mt-8 border-l-4 border-flame pl-4 text-white/75">
                 Why not the Chrome Web Store? Store review takes days, and Chrome only installs from the store or through managed policy. This is the same code, loaded directly. A store listing is the next step.
               </p>
             </div>
           </div>
         </section>
 
-        <section className="mx-auto grid w-full max-w-6xl items-center gap-8 px-4 py-16 sm:px-8 md:grid-cols-[auto_1fr_auto]">
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-night text-mint">
-            <Icon name="users" className="h-8 w-8" />
-          </span>
-          <div>
-            <h2 className="font-display text-2xl font-bold">One report protects the whole campus</h2>
-            <p className="mt-1 max-w-2xl text-muted">
-              A student reports a suspicious sender. The placement cell marks it fake, and everyone sees the same warning within a minute. Personal accounts are judged one address at a time, so a shared domain like gmail.com is never blocked.
-            </p>
+        <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-8">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="font-display text-3xl font-bold">One report protects the whole campus</h2>
+              <p className="mt-2 max-w-2xl text-muted">Personal accounts are judged one address at a time, so a shared domain like gmail.com is never blocked.</p>
+            </div>
+            <Link href="/dashboard" className="border-2 border-black px-5 py-3 text-center font-bold text-black hover:bg-black hover:text-white">
+              Placement cell dashboard
+            </Link>
           </div>
-          <Link href="/dashboard" className="border border-night px-5 py-3 text-center font-bold text-night hover:bg-night hover:text-white">
-            Placement cell dashboard
-          </Link>
+          <div className="mt-8 rounded-lg border border-rule bg-sheet p-3 sm:p-6">
+            <CampusFlow />
+          </div>
         </section>
       </main>
 
       <footer className="border-t border-rule">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-muted sm:px-8">
           <span className="flex items-center gap-2">
-            <Mark className="h-6 w-6" /> PlacementShield, built for Arthakram PS5
+            <Mark className="h-6 w-6" /> MAILicious, built for Arthakram PS5
           </span>
           <span>Nothing you check is saved. Text of checked mail goes to Google&apos;s AI.</span>
         </div>
       </footer>
     </>
+  );
+}
+
+const BAR: Record<SecurityCheck["status"], string> = { pass: "bg-low", warn: "bg-medium", fail: "bg-high", skip: "bg-rule" };
+
+// One bar per run of the report: the whole picture at a glance, with counts beside it so colour never carries it alone.
+function ReportBar({ checks }: { checks: SecurityCheck[] }) {
+  const order: SecurityCheck["status"][] = ["fail", "warn", "pass", "skip"];
+  const parts = order.map((status) => ({ status, count: checks.filter((c) => c.status === status).length })).filter((p) => p.count);
+  return (
+    <div className="mt-2">
+      <div className="flex h-3 gap-0.5" role="img" aria-label={reportSummary(checks)}>
+        {parts.map((p) => (
+          <span key={p.status} title={`${p.count} ${MARK[p.status].said.toLowerCase()}`} style={{ flexGrow: p.count }} className={`rounded-sm ${BAR[p.status]}`} />
+        ))}
+      </div>
+      <p className="mt-1.5 flex flex-wrap gap-x-3 text-sm text-muted">
+        {parts.map((p) => (
+          <span key={p.status}>
+            <span aria-hidden className={`font-bold ${MARK[p.status].color}`}>
+              {MARK[p.status].sign}
+            </span>{" "}
+            {p.count} {MARK[p.status].said.toLowerCase()}
+          </span>
+        ))}
+      </p>
+    </div>
   );
 }
 
@@ -495,7 +498,7 @@ function Verdict({ result }: { result: CheckResult }) {
       <p className="mt-5 font-bold">{result.nextStep}</p>
 
       <h3 className="mt-6 border-t border-rule pt-4 font-display text-lg font-bold">Security report</h3>
-      <p className="text-muted">{reportSummary(result.checks)}</p>
+      <ReportBar checks={result.checks} />
       <ul className="mt-2 space-y-2">
         {result.checks.map((c) => (
           <li key={c.label} className="grid grid-cols-[1.25rem_1fr] gap-1">

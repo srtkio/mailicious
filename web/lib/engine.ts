@@ -192,7 +192,7 @@ export function deepRules({ sender = "", links = [], linkPairs = [], attachments
 }
 
 // What sender proof can settle: these depend on who's writing, so a proven office sender clears them.
-const SOFT_FOR_TRUSTED = ["OUTSIDE_FORM", "LINK_MISMATCH", "WRONG_DOMAIN", "COMPANY_DOMAIN_MISMATCH", "TOO_GOOD", "REALITY_CHECK", "URGENCY", "HACKED_ACCOUNT", "BODY_NOT_READ"];
+const SOFT_FOR_TRUSTED = ["OUTSIDE_FORM", "LINK_MISMATCH", "WRONG_DOMAIN", "COMPANY_DOMAIN_MISMATCH", "TOO_GOOD", "REALITY_CHECK", "URGENCY", "HACKED_ACCOUNT"];
 // authenticated: DMARC proved the From address. genuine: the placement cell vouched for this sender.
 export type SenderContext = { authenticated?: boolean; genuine?: boolean };
 
@@ -269,6 +269,8 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
 
   if (trusted) {
     for (let i = flags.length - 1; i >= 0; i--) if (SOFT_FOR_TRUSTED.includes(flags[i].code)) flags.splice(i, 1);
+    // College posters are often just images, so a proven office keeps its tick, but the card never vouches for what it couldn't read.
+    for (const f of flags) if (f.code === "BODY_NOT_READ") f.level = "low";
     const fee = flags.findIndex((f) => f.code === "ASKS_FEE");
     if (fee >= 0) flags[fee] = { code: "PAYMENT_NOTICE", level: "medium", text: "A verified college office mentions a payment." };
   }
@@ -291,7 +293,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   return {
     level,
     reasons: level === "low" && note ? [note, ...unique.slice(0, 1).map((f) => f.text)] : unique.length ? unique.slice(0, 2).map((f) => f.text) : ["No common warning signs found in this text. That doesn't prove it's real."],
-    nextStep: level === "low" ? (trusted ? TRUSTED_NEXT : verifiedCollege ? COLLEGE_NEXT : LOW_NEXT) : (NEXT_STEP[top.code] ?? DEFAULT_NEXT),
+    nextStep: level === "low" ? (trusted && !unique.some((f) => f.code === "BODY_NOT_READ") ? TRUSTED_NEXT : verifiedCollege ? COLLEGE_NEXT : LOW_NEXT) : (NEXT_STEP[top.code] ?? DEFAULT_NEXT),
     intent: intentOf(unique, text, !!formHost, hosts.length > 0),
     flags: unique,
     evidence: {

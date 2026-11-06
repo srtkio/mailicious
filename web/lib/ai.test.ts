@@ -32,6 +32,9 @@ describe("extractClaims", () => {
     expect(redact("PAN ABCDE1234F")).toBe("PAN [id]");
     expect(redact("Your OTP is 4821. Your code: AB12CD.")).toBe("Your OTP is [number]. Your code: [number].");
     expect(redact("Interview on 12 Nov 2026 at 10:30, room 204.")).toBe("Interview on 12 Nov 2026 at 10:30, room 204.");
+    expect(redact("A/c No.123456789012 Mob.9876543210")).toBe("A/c No.[number] Mob.[number]");
+    expect(redact("pan abcde1234f, password: Xy!9 and 4821 is your OTP, CVV 123")).toBe("pan [id], password [hidden] and [number] is your OTP, CVV [number]");
+    expect(redact("Code of conduct fee ₹500")).toBe("Code of conduct fee ₹500");
   });
   it("maps meaning signals to our own severe flags", () => {
     expect(signalFlags(["remote_access", "money_mule", "payment_demand"]).map((f) => [f.code, f.level])).toEqual([["REMOTE_ACCESS", "high"], ["MONEY_MULE", "high"], ["ASKS_FEE", "high"]]);

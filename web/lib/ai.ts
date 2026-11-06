@@ -63,9 +63,11 @@ const shortText = (v: unknown, max: number) => (typeof v === "string" && v.trim(
 // Every opened mail can reach Google, so codes and account numbers stay behind. Amounts stay, for the pay check.
 export const redact = (text: string) =>
   text
-    .replace(/\b[A-Z]{5}\d{4}[A-Z]\b/g, "[id]")
-    .replace(/(?<![₹\d,.]|\brs\.?\s?|\binr\s?)\b\d(?:[ -]?\d){5,}\b/gi, "[number]")
-    .replace(/\b(otp|code|pin|password|passcode)\b(\D{0,20}?)\b[a-z0-9]*\d[a-z0-9]*\b/gi, "$1$2[number]");
+    .replace(/\b[A-Z]{5}\d{4}[A-Z]\b/gi, "[id]")
+    .replace(/\b(password|passcode|pwd)\b\W{0,10}\S+/gi, "$1 [hidden]")
+    .replace(/\b\d{4,8}\b(?=\s+is\s+(your|the)\s+(otp|code|pin|verification))/gi, "[number]")
+    .replace(/(?<![₹\d]|\d[.,]|\brs\.?\s?|\binr\s?)\b\d(?:[ -]?\d){5,}\b/gi, "[number]")
+    .replace(/\b(otp|code|pin|cvv)\b(\D{0,20}?)(?<!₹|\brs\.?\s?|\binr\s?)\b[a-z0-9]*\d[a-z0-9]*\b/gi, "$1$2[number]");
 
 export async function extractClaims(text: string, sender: string): Promise<Claims | null> {
   if (!process.env.GEMINI_API_KEY) return null;

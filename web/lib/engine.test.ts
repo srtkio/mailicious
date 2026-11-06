@@ -91,6 +91,14 @@ describe("sender context", () => {
     expect(checkRules(text, "hr@partner.example", [], [], [], { authenticated: true, genuine: true }).level).toBe("low");
     expect(checkRules(text, "hr@partner.example", [], [], [], { genuine: true }).level).toBe("medium");
   });
+  it("keeps a verified office's image mail low, without vouching for it", () => {
+    const unread = [{ code: "BODY_NOT_READ", level: "medium" as const, text: "Mostly images." }];
+    const office = checkRules("Poster", "library@rishihood.edu.in", [], [], unread, authenticated);
+    expect(office.level).toBe("low");
+    expect(office.reasons).toContain("Mostly images.");
+    expect(office.nextStep).not.toContain("looks genuine");
+    expect(checkRules("Poster", "hr@acme.example", [], [], unread, authenticated).level).toBe("medium");
+  });
   it("never lets trust clear a dangerous attachment or a blocklisted sender", () => {
     const extra = [{ code: "DANGEROUS_ATTACHMENT", level: "high" as const, text: "x" }];
     expect(checkRules("Hello.", "library@rishihood.edu.in", [], [], extra, authenticated).level).toBe("high");

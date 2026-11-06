@@ -15,7 +15,9 @@ export const SAME_SCRIPT_BITS = 14;
 function words(text: string): string[] {
   return text
     .toLowerCase()
-    .replace(/https?:\/\/\S+|www\.\S+|[\w.+-]+@[\w.-]+/g, " ") // links and addresses are what scammers swap first
+    .split(/\s+/)
+    .filter((w) => !w.includes("@") && !/https?:|www\./.test(w)) // links and addresses are what scammers swap first
+    .join(" ")
     .replace(/[^\p{L}\s]/gu, " ")
     .split(/\s+/)
     .filter((w) => w.length > 2 && !STOP.has(w))

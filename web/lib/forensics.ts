@@ -55,13 +55,14 @@ export function letterDate(text: string): Date | null {
 
 const DESIGN_TOOL = /\b(canva|picsart|photoshop|illustrator|coreldraw|ilovepdf|smallpdf|sejda|pdfescape|pdf24|sodapdf|pdfelement|foxit phantom|wps)\b/i;
 const PAY_ASK = /\b(?:registration|security|refundable|caution|processing|training|joining|uniform|laptop|verification|onboarding|document(?:ation)?)\s+(?:fees?|deposit|charges?|amount)\b|\bpay(?:ment)?\s+(?:of\s+)?(?:rs\.?|inr|₹)\s*[\d,]+/i;
-const UPI = /\b[\w.-]{2,}@(?:ybl|ibl|axl|upi|paytm|apl|okaxis|okhdfcbank|okicici|oksbi|icici|hdfcbank|sbi)\b/i;
-const FREE_MAIL = /\b[\w.+-]+@(?:gmail|yahoo|outlook|hotmail|rediffmail|proton|protonmail)\.[a-z.]+\b/i;
+const UPI = /\b[\w.-]{2,64}@(?:ybl|ibl|axl|upi|paytm|apl|okaxis|okhdfcbank|okicici|oksbi|icici|hdfcbank|sbi)\b/i;
+const FREE_MAIL = /\b[\w.+-]{1,64}@(?:gmail|yahoo|outlook|hotmail|rediffmail|proton|protonmail)\.[a-z.]+\b/i;
 const SECRETS = /\b(?:otp|aadhaa?r|pan card|bank (?:details|account)|cvv|atm pin|upi pin)\b/i;
 const DAY = 86_400_000;
+const MAX_TEXT = 60_000; // a letter is a page or two, and a crafted PDF mustn't hang the tab
 
 export function auditLetter(facts: PdfFacts): LetterReport {
-  const text = facts.text.replace(/\s+/g, " ").trim();
+  const text = facts.text.slice(0, MAX_TEXT).replace(/\s+/g, " ").trim();
   const upper = text.toUpperCase();
   const findings: Finding[] = [];
   const add = (label: string, status: Finding["status"], detail: string) => findings.push({ label, status, detail });

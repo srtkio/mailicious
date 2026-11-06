@@ -1,5 +1,6 @@
 // Campus data in Supabase, over its REST API. Server only. Stores no mail text. If Supabase is missing or down,
 // checks carry on without it.
+import { isDna } from "./dna";
 import { COLLEGE_DOMAIN, FREE_MAIL, isOn, registrable } from "./engine";
 
 const TIMEOUT_MS = 2500;
@@ -41,11 +42,17 @@ export async function campusVerdicts(): Promise<Verdicts> {
   try {
     const rows: { target: string; verdict: string }[] = await (await rest("verdicts?select=target,verdict")).json();
     const of = (kind: string) => rows.filter((r) => r.verdict === kind).map((r) => r.target);
-    const reported: { target: string; dna: string }[] = await (await rest("reports?select=target,dna&dna=not.is.null&order=id.desc&limit=2000")).json();
-    const fake = of("fake");
-    verdicts = { at: Date.now(), fake, genuine: of("genuine"), scripts: [...new Set(reported.filter((r) => fake.includes(r.target)).map((r) => r.dna))] };
+    verdicts = { ...verdicts, at: Date.now(), fake: of("fake"), genuine: of("genuine") };
   } catch (e) {
     console.error("campusVerdicts failed:", e);
+    return verdicts;
+  }
+  // Fetched apart, so a failure here can't cost the blocklist above.
+  try {
+    const reported: { target: string; dna: unknown }[] = await (await rest("reports?select=target,dna&dna=not.is.null&order=id.desc&limit=2000")).json();
+    verdicts.scripts = [...new Set(reported.filter((r) => verdicts.fake.includes(r.target)).map((r) => r.dna).filter(isDna))];
+  } catch (e) {
+    console.error("campus scripts failed:", e);
   }
   return verdicts;
 }
@@ -65,7 +72,7 @@ export async function setVerdict(target: string, verdict: "fake" | "genuine"): P
     headers: { prefer: "resolution=merge-duplicates" },
     body: JSON.stringify({ target, verdict, updated_at: new Date().toISOString() }),
   });
-  verdicts = { at: 0, fake: [], genuine: [], scripts: [] }; // this instance sees the change at once; others within a minute
+  verdicts.at = 0; // this instance sees the change at once; others within a minute
 }
 
 const RADAR_CACHE_MS = 30_000;

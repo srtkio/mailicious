@@ -49,6 +49,21 @@ describe("store", () => {
     await setVerdict("new.example", "fake");
     expect((await campusVerdicts()).fake).toEqual(["new.example"]);
   });
+  it("keeps a sender's verdicts when the script lookup fails, and only lists scripts of fake senders", async () => {
+    const fail = { on: false };
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.includes("reports?")) {
+        if (fail.on) throw new Error("down");
+        return json([{ target: "bad.example", dna: "00ff00ff00ff00ff" }, { target: "ok.example", dna: "11ff00ff00ff00ff" }, { target: "bad.example", dna: "not-a-print" }]);
+      }
+      return json([{ target: "bad.example", verdict: "fake" }]);
+    }));
+    await setVerdict("bad.example", "fake");
+    expect(await campusVerdicts()).toMatchObject({ fake: ["bad.example"], scripts: ["00ff00ff00ff00ff"] });
+    fail.on = true;
+    await setVerdict("bad.example", "fake");
+    expect(await campusVerdicts()).toMatchObject({ fake: ["bad.example"], scripts: ["00ff00ff00ff00ff"] });
+  });
   it("groups the queue and leaves out decided senders", async () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {
       if (url.includes("events")) return json([{ level: "high", attack: "Fee" }, { level: "low", attack: null }, { level: "high", attack: "Fee" }]);

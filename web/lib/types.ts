@@ -55,4 +55,5 @@ export type CheckResult = {
   sender?: string; // the address checked, for reporting
   dna?: string | null; // Scam DNA: the script's fingerprint, sent back with a report
   dnaMatch?: number | null; // percent match with a script the campus marked fake
+  dnaToken?: string | null; // the server's proof that this fingerprint came from a flagged mail
 };

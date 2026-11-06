@@ -28,6 +28,11 @@ describe("scamDna", () => {
     expect(seen.length).toBeGreaterThan(60);
     for (let i = 0; i < seen.length; i++) for (let j = i + 1; j < seen.length; j++) expect(dnaDistance(seen[i], seen[j])).toBeGreaterThan(SAME_SCRIPT_BITS);
   });
+  it("stays fast on a crafted run of one long word", () => {
+    const start = performance.now();
+    scamDna("a.".repeat(10_000));
+    expect(performance.now() - start).toBeLessThan(200);
+  });
   it("rejects nothing it can't compare", () => {
     expect(dnaMatch(null, ["00000000ffffffff"])).toBeNull();
     expect(dnaMatch("00000000ffffffff", [])).toBeNull();

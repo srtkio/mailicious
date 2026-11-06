@@ -14,6 +14,13 @@ describe("analyzeHeaders", () => {
     const r = analyzeHeaders(head("spf=pass; dkim=pass; dmarc=pass"));
     expect(r.authenticated).toBe(true);
     expect(analyzeHeaders(head("spf=pass; dkim=pass; dmarc=none")).authenticated).toBe(false);
+    const forged = (from: string, auth = "dmarc=pass") => analyzeHeaders(`Authentication-Results: mx.google.com; ${auth}\nFrom: ${from}`);
+    expect(forged('"<placement@rishihood.edu.in>" <evil@x.example>').from).toBe("evil@x.example");
+    expect(forged("<a@x.example>, <b@y.example>").authenticated).toBe(false);
+    expect(forged("nonsense").authenticated).toBe(false);
+    expect(forged("placement@rishihood.edu.in", "dmarc=pass header.from=evil.example").authenticated).toBe(false);
+    expect(forged("placement@nst.rishihood.edu.in", "dmarc=pass header.from=rishihood.edu.in").authenticated).toBe(true);
+    expect(analyzeHeaders("Authentication-Results: mx; dmarc=pass\nFrom: a@x.example\nFrom: b@y.example").authenticated).toBe(false);
     expect(r.flags).toEqual([]);
     expect(r.from).toBe("hr@acme.example");
     expect(r.checks[0]).toMatchObject({ label: "Sender authentication", status: "pass" });

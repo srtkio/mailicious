@@ -182,6 +182,8 @@ describe("deepRules", () => {
   });
   it("reads senders with a display name", () => {
     expect(addressOf("Library <Library@rishihood.edu.in>")).toBe("library@rishihood.edu.in");
+    expect(addressOf('"<placement@rishihood.edu.in>" <evil@x.example>')).toBe("evil@x.example");
+    expect(addressOf("no address here")).toBe("");
     expect(deepRules({ sender: "Library <library@rishihood.edu.in>" })).toEqual([]);
     expect(checkRules("Book due Friday.", "Library <library@rishihood.edu.in>", [], [], [], { authenticated: true }).reasons[0]).toContain("Verified college office");
   });
@@ -197,11 +199,16 @@ describe("deepRules", () => {
     expect(checkRules(delivery, "", [], [], [], { aiChecked: true }).level).toBe("medium");
     expect(checkRules(delivery).level).toBe("high");
     expect(checkRules("Internship: share this OTP.", "", [], [], [], { aiChecked: true }).level).toBe("high");
+    expect(checkRules("Share the OTP to unlock your account.", "", [], [], [], { aiChecked: true }).level).toBe("high");
+    expect(checkRules("Courier stuck. Share your bank OTP with the delivery agent.", "", [], [], [], { aiChecked: true }).level).toBe("high");
+    expect(checkRules("Send your Aadhaar number by mail.", "", [], [], [], { aiChecked: true }).level).toBe("high");
+    expect(checkRules("Send me your UPI number and IFSC.", "", [], [], [], { aiChecked: true }).level).toBe("high");
   });
   it("can't clear a demand through a no-fee promise", () => {
     const level = (t: string) => checkRules(t, "", [], [], [], { aiChecked: true }).level;
     expect(level("For this job we don't charge a fee besides the Rs1500 kit, kindly pay.")).toBe("high");
     expect(level("We never charge any fee other than the job deposit of Rs 900, pay today.")).toBe("high");
+    expect(level("For your job, no genuine firm charges you fee unless we say so, so pay our fee now.")).toBe("high");
   });
   it("doesn't read a tool as a claim to be its maker", () => {
     expect(checkRules("Your interview is on Google Meet.", "hr@acme.example").level).toBe("low");

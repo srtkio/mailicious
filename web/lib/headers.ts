@@ -12,7 +12,8 @@ const headerValues = (block: string, name: string): string[] =>
     .filter((l) => l.toLowerCase().startsWith(`${name}:`))
     .map((l) => l.slice(name.length + 1).trim());
 
-const address = (v = "") => (v.includes("@") ? addressOf(v) : "");
+const address = addressOf;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const domainOf = (a: string) => a.split("@").pop() ?? "";
 
 const VERDICT_RANK = ["pass", "none", "neutral", "policy", "temperror", "softfail", "fail", "permerror"];
@@ -91,7 +92,12 @@ export function analyzeHeaders(block: string): HeaderReport {
   } else if (from) {
     checks.push({ label: "Reply address", status: "pass", detail: "Replies go back to the sender's own domain." });
   }
-  return { from, authenticated: dmarc === "pass" && !!from, flags, checks };
+  // Proven only with one clear From address, on the domain DMARC actually checked.
+  const fromHeaders = headerValues(block, "from");
+  const addresses = fromHeaders.join(",").replace(/"(?:[^"\\]|\\.)*"/g, " ").match(/@/g)?.length ?? 0;
+  const checked = stripComments(auth).clean.match(/\bdmarc\s*=\s*pass\b[^;]*\bheader\.from=([^\s;]+)/i)?.[1]?.toLowerCase();
+  const aligned = !checked || registrable(checked) === registrable(domainOf(from));
+  return { from, authenticated: dmarc === "pass" && EMAIL.test(from) && fromHeaders.length === 1 && addresses === 1 && aligned, flags, checks };
 }
 
 type Node = { nodeName: string; namespaceURI?: string; value?: string; attrs?: { name: string; value: string }[]; childNodes?: Node[] };

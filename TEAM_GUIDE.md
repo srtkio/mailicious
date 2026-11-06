@@ -29,7 +29,7 @@ There are three pieces, all using one engine:
 | Gmail extension (`extension/`) | Works in real Gmail: card, security report and real SPF, DKIM and DMARC results confirmed. Link warning and reply warning only tested on a fake page |
 | Placement-cell dashboard, reporting and campus blocklist (`web/lib/store.ts`) | Built at `/dashboard`, needs the Supabase keys, `ADMIN_PASSWORD` and `supabase/schema.sql` run once |
 | Technology page (`web/app/technology/page.tsx`) | Built, not linked from the home page yet |
-| Pitch deck | Not started |
+| Pitch deck | Done: 10 slides, private Claude artifact held by the lead |
 
 ## Run it
 

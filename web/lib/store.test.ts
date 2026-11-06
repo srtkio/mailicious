@@ -1,6 +1,6 @@
 // Campus store with fetch stubbed.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { campusVerdicts, dashboard, isSharedDomain, logEvent, reportTarget, setVerdict } from "./store";
+import { campusVerdicts, dashboard, isSharedDomain, logEvent, reportTarget, setVerdict, topScripts } from "./store";
 
 const json = (v: unknown) => new Response(JSON.stringify(v));
 
@@ -24,6 +24,14 @@ describe("reportTarget", () => {
   });
   it("rejects anything that isn't an address", () => {
     for (const bad of ["", "nope", "a@b", "a b@c.example"]) expect(reportTarget(bad)).toBeNull();
+  });
+});
+
+describe("topScripts", () => {
+  const print = (n: number) => String(n).repeat(16);
+  it("keeps only a fake sender's most-reported fingerprints", () => {
+    const reports = [1, 1, 1, 2, 2, 3, 4].map((n) => ({ target: "bad.example", dna: print(n) }));
+    expect(topScripts([...reports, { target: "ok.example", dna: print(5) }], ["bad.example"])).toEqual([print(1), print(2)]);
   });
 });
 

@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { ScamDrill } from "./drill";
 import { CampusFlow, InstallFlow, PipelineFlow } from "./flows";
+import { HeroFade, HeroStage } from "./hero";
+import { Intro, Marquee, Silk, Stagger } from "./motion";
 import { Logo, Nav, Reveal } from "./nav";
 import { CampusRadar } from "./radar";
 import { Guide, HeroScene } from "./scene";
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { DnaLab, LetterLab, Rescue } from "./standouts";
+import { ScrollXray } from "./xray";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
 import type { CheckResult, Level, SecurityCheck } from "@/lib/types";
 
 const VERDICT: Record<Level, { stamp: string; color: string }> = {
@@ -92,7 +96,32 @@ const CHECKS = [
   ["clock", "How new the domain is", "A sender domain registered last week isn't a recruiter, however good the mail looks."],
 ] as const;
 
+const SCAMS = ["Advance-fee scam", "OTP relay", "Hacked college ID", "Look-alike link", "Disguised link", "Fake offer letter", "Money mule"] as const;
+
+const WHILE_CHECKING = ["Sender proof", "Where links go", "Attachments", "What it asks", "The company", "Domain age"];
+
+// What a worried student sees instead of a spinner: the checks actually being made.
+function Checking() {
+  return (
+    <div role="status" className="relative overflow-hidden rounded-md border border-rule bg-white p-5">
+      <span aria-hidden className="paper-scan xray-beam absolute inset-x-0 h-8" />
+      <p className="font-display text-xl font-bold">Checking this mail…</p>
+      <ul className="mt-3 space-y-1.5">
+        {WHILE_CHECKING.map((label, i) => (
+          <li key={label} style={{ "--i": i * 3 } as CSSProperties} className="tick-in text-muted">
+            {label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+const chapter = "grid items-start gap-8 border-t border-white/15 py-12 lg:grid-cols-[1fr_1.25fr] lg:gap-14";
+
 export default function Home() {
+  const [ready, setReady] = useState(false);
+  const onIntroDone = useCallback(() => setReady(true), []);
   const [text, setText] = useState("");
   const [sender, setSender] = useState("");
   const [result, setResult] = useState<CheckResult | null>(null);
@@ -134,28 +163,39 @@ export default function Home() {
 
   return (
     <>
+      <Intro onDone={onIntroDone} />
       <Nav />
-      <div id="top" className="bg-night text-white">
-        <section className="mx-auto grid w-full max-w-6xl items-center gap-14 px-4 pb-20 pt-10 sm:px-8 sm:pt-14 lg:grid-cols-[1.05fr_1fr]">
-          <div>
-            <p className="font-bold text-flame">For every student who gets placement mail</p>
-            <h1 className="mt-3 font-display text-4xl font-extrabold leading-[1.05] sm:text-6xl">Catch the fake offer before you reply, pay or click.</h1>
-            <p className="mt-5 max-w-xl text-lg leading-8 text-white/80">
-              MAILicious sits inside Gmail. It checks who really sent a mail, where its links go and what it wants from you, then tells you what to do in five seconds.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-4">
-              <a href="#extension" className="bg-flame px-6 py-3 font-bold text-black hover:bg-white">
-                Add it to Gmail
-              </a>
-              <a href="#check" className="border border-white/50 px-6 py-3 font-bold text-white hover:bg-white hover:text-black">
-                Try the checker
-              </a>
+      <div id="top" className="relative overflow-hidden bg-night text-white">
+        <Silk />
+        <HeroFade className="relative">
+          <section className="mx-auto grid w-full max-w-6xl items-center gap-14 px-4 pb-20 pt-10 sm:px-8 sm:pt-14 lg:grid-cols-[1.05fr_1fr]">
+            <div>
+              <p className="hero-rise font-bold text-flame">For every student who gets placement mail</p>
+              <h1 style={{ "--i": 1 } as CSSProperties} className="hero-rise mt-3 font-display text-4xl font-extrabold leading-[1.05] sm:text-6xl">
+                Catch the fake offer before you reply, pay or click.
+              </h1>
+              <p style={{ "--i": 2 } as CSSProperties} className="hero-rise mt-5 max-w-xl text-lg leading-8 text-white/80">
+                MAILicious sits inside Gmail. It checks who really sent a mail, where its links go and what it wants from you, then tells you what to do in five seconds.
+              </p>
+              <div style={{ "--i": 3 } as CSSProperties} className="hero-rise mt-8 flex flex-wrap gap-4">
+                <a href="#extension" className="shine bg-flame px-6 py-3 font-bold text-black hover:bg-white">
+                  Add it to Gmail
+                </a>
+                <a href="#check" className="border border-white/50 px-6 py-3 font-bold text-white hover:bg-white hover:text-black">
+                  Try the checker
+                </a>
+              </div>
+              <p style={{ "--i": 4 } as CSSProperties} className="hero-rise mt-4 text-white/70">
+                Free. No Google sign-in. We don&apos;t save your mail.
+              </p>
             </div>
-            <p className="mt-4 text-white/70">Free. No Google sign-in. We don&apos;t save your mail.</p>
-          </div>
-          <HeroScene />
-        </section>
+            <HeroStage>
+              <HeroScene play={ready} />
+            </HeroStage>
+          </section>
+        </HeroFade>
       </div>
+      <Marquee items={SCAMS} />
 
       <main>
         <section id="guide" className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-8">
@@ -173,7 +213,9 @@ export default function Home() {
           </p>
         </section>
 
-        <section id="how" className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-8">
+        <ScrollXray />
+
+        <section id="how" className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-8">
           <h2 className="font-display text-3xl font-bold">How it works</h2>
           <p className="mt-2 max-w-2xl text-muted">Every mail you open runs through the same six checks at once, and comes out as one clear answer.</p>
           <div className="mt-8 rounded-lg border border-rule bg-sheet p-3 sm:p-6">
@@ -186,11 +228,13 @@ export default function Home() {
             <h2 className="font-display text-3xl font-bold">What it checks</h2>
             <p className="mt-2 max-w-2xl text-muted">Six things a worried student can&apos;t easily check alone, done in a few seconds.</p>
             <ul className="mt-10 grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
-              {CHECKS.map(([icon, title, body]) => (
-                <li key={title} className="border-t-2 border-night pt-5">
-                  <Icon name={icon} className="h-7 w-7 text-pad" />
-                  <h3 className="mt-3 font-display text-lg font-bold">{title}</h3>
-                  <p className="mt-1 text-muted">{body}</p>
+              {CHECKS.map(([icon, title, body], i) => (
+                <li key={title}>
+                  <Stagger index={i} className="lift h-full border-t-2 border-night pt-5">
+                    <Icon name={icon} className="h-7 w-7 text-pad" />
+                    <h3 className="mt-3 font-display text-lg font-bold">{title}</h3>
+                    <p className="mt-1 text-muted">{body}</p>
+                  </Stagger>
                 </li>
               ))}
             </ul>
@@ -246,7 +290,55 @@ export default function Home() {
           </Reveal>
         </section>
 
-        <section id="check" className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-8">
+        <section id="standouts" aria-labelledby="standouts-title" className="relative scroll-mt-14 overflow-hidden bg-night text-white">
+          <Silk sheet={{ from: [1.08, 0.02], a: [0.5, 0.2], b: [0.9, 0.62], to: [-0.1, 0.34], alpha: 0.13, width: 0.14 }} />
+          <div className="relative mx-auto w-full max-w-6xl px-4 pb-8 pt-20 sm:px-8">
+            <Reveal>
+              <p className="font-bold text-flame">Stand-outs</p>
+              <h2 id="standouts-title" className="mt-2 max-w-3xl font-display text-4xl font-extrabold leading-tight sm:text-5xl">
+                Three things a spam filter can&apos;t do.
+              </h2>
+            </Reveal>
+
+            <div className={`${chapter} mt-10`}>
+              <Reveal>
+                <h3 className="font-display text-3xl font-bold">Scam DNA</h3>
+                <p className="mt-1 font-bold text-flame">Block the script, not the sender.</p>
+                <p className="mt-3 text-lg leading-8 text-white/80">A new Gmail costs a scammer a minute, so a blocklist alone loses. MAILicious fingerprints the script itself. Once your placement cell marks one scam fake, its rewrites are caught too, whoever sends them.</p>
+                <p className="mt-3 text-white/70">Only a 64-bit fingerprint is stored, and the mail can&apos;t be rebuilt from it. Press the buttons: this is the real algorithm.</p>
+              </Reveal>
+              <Reveal>
+                <DnaLab />
+              </Reveal>
+            </div>
+
+            <div id="letter" className={`${chapter} scroll-mt-14`}>
+              <Reveal>
+                <h3 className="font-display text-3xl font-bold">Offer Letter X-ray</h3>
+                <p className="mt-1 font-bold text-flame">The PDF is the bait. So open it up.</p>
+                <p className="mt-3 text-lg leading-8 text-white/80">It tests the GST number&apos;s check digit, reads the structure of the CIN, finds which tool really made the file, compares dates, and looks for UPI IDs, payment demands and hidden scripts.</p>
+                <p className="mt-3 text-white/70">It runs entirely in your browser, so your letter is never uploaded.</p>
+              </Reveal>
+              <Reveal>
+                <LetterLab />
+              </Reveal>
+            </div>
+
+            <div id="rescue" className={`${chapter} scroll-mt-14`}>
+              <Reveal>
+                <h3 className="font-display text-3xl font-bold">Damage Control</h3>
+                <p className="mt-1 font-bold text-flame">Most tools stop at the warning.</p>
+                <p className="mt-3 text-lg leading-8 text-white/80">Already paid or shared a code? Say what happened and get an ordered rescue plan, starting with India&apos;s 1930 cybercrime helpline, plus a complaint that&apos;s already written.</p>
+                <p className="mt-3 text-white/70">It appears only when you ask for it, so it adds no alarms.</p>
+              </Reveal>
+              <Reveal>
+                <Rescue />
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
+        <section id="check" className="mx-auto w-full max-w-6xl scroll-mt-14 px-4 py-16 sm:px-8">
           <h2 className="font-display text-3xl font-bold">Try it on a mail right now</h2>
           <p className="mt-2 text-muted">No install needed. Paste a mail, or use one of the samples.</p>
           <div className="mt-6 grid items-start gap-8 border border-rule bg-sheet p-5 sm:p-8 lg:grid-cols-[1fr_24rem]">
@@ -287,7 +379,7 @@ export default function Home() {
               />
 
               <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
-                <button type="submit" disabled={checking} className="bg-flame px-6 py-3 font-bold text-black hover:bg-black hover:text-white disabled:opacity-60">
+                <button type="submit" disabled={checking} className="shine bg-flame px-6 py-3 font-bold text-black hover:bg-black hover:text-white disabled:opacity-60">
                   {checking ? "Checking…" : "Check this mail"}
                 </button>
                 {SAMPLES.map((s) => (
@@ -300,7 +392,8 @@ export default function Home() {
 
             <section aria-live="polite" aria-label="Result">
               {error && <p className="font-bold text-high">{error}</p>}
-              {!result && !error && (
+              {checking && <Checking />}
+              {!result && !error && !checking && (
                 <p className="text-muted">Your result shows here. We don&apos;t save your mail, but its text goes to Google&apos;s AI to be read, so remove anything private first.</p>
               )}
               {result && <Verdict result={result} />}
@@ -420,7 +513,7 @@ function Report({ result }: { result: CheckResult }) {
     const res = await fetch("/api/report", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sender: result.sender, level: result.level, attack: result.attack }),
+      body: JSON.stringify({ sender: result.sender, level: result.level, attack: result.attack, dna: result.dna, dnaToken: result.dnaToken }),
     }).catch(() => null);
     setState(res?.ok ? "sent" : "failed");
   }

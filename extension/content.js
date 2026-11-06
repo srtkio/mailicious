@@ -42,7 +42,25 @@
     button.main { background: #ff6a00; border-color: #0a0a0a; color: #0a0a0a; }
     button.report { margin-top: 8px; padding: 5px 10px; }
     button:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid #c2410c; outline-offset: 2px; }
-    .toast { position: fixed; right: 20px; bottom: 20px; z-index: 2147483647; max-width: 340px; background: #c81e1e; color: #fff; padding: 12px 14px; border-radius: 6px; }
+    .toast { position: fixed; right: 20px; bottom: 20px; z-index: 2147483647; max-width: 340px; background: #c81e1e; color: #fff; padding: 12px 14px; border-radius: 6px; box-shadow: 0 10px 28px rgba(0, 0, 0, .3); animation: toast-in .3s cubic-bezier(.2, .9, .3, 1.15) both; }
+    .card { position: relative; overflow: hidden; animation: card-in .34s cubic-bezier(.2, .8, .2, 1) both; }
+    .card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, .7) 50%, transparent 60%); transform: translateX(-100%); animation: sweep .8s ease-out .15s 1; pointer-events: none; }
+    .pill { animation: pill-in .3s ease-out both; }
+    .pill.busy { background: linear-gradient(90deg, #a15c00 42%, #ff6a00 50%, #a15c00 58%) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 1.3s linear infinite; }
+    .overlay { animation: fade .18s ease-out both; }
+    .box { box-shadow: 0 24px 60px rgba(0, 0, 0, .4); animation: pop .28s cubic-bezier(.2, 1.3, .4, 1) both; }
+    @keyframes card-in { from { opacity: 0; transform: translateY(-6px); } }
+    @keyframes pill-in { from { opacity: 0; transform: translateX(-6px); } }
+    @keyframes sweep { to { transform: translateX(100%); } }
+    @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+    @keyframes fade { from { opacity: 0; } }
+    @keyframes pop { from { opacity: 0; transform: scale(.92) translateY(10px); } }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(14px); } }
+    @media (prefers-reduced-motion: reduce) {
+      .card, .card::after, .pill, .overlay, .box, .toast { animation: none; }
+      .card::after { display: none; }
+      .pill.busy { background: none; color: var(--c); animation: none; }
+    }
   `;
     // Selectors as gmail.js and InboxSDK use them; the second of each pair is InboxSDK's fallback.
   const bodyOf = (message) => message.querySelector(".a3s") ?? message.querySelector(".ii.gt");
@@ -99,7 +117,7 @@
     button.onclick = () => {
       button.disabled = true;
       button.textContent = "Reporting…";
-      chrome.runtime.sendMessage({ type: "report", payload: { sender: result.sender, level: result.level, attack: result.attack } }, (ok) => {
+      chrome.runtime.sendMessage({ type: "report", payload: { sender: result.sender, level: result.level, attack: result.attack, dna: result.dna, dnaToken: result.dnaToken } }, (ok) => {
         button.textContent = !chrome.runtime.lastError && ok ? "Reported to your placement cell" : "Report failed, try again";
         button.disabled = !chrome.runtime.lastError && ok;
       });
@@ -172,7 +190,7 @@
     if (!text && !subject && !body.querySelector("a[href]")) return results.set(id, null);
 
     results.set(id, "pending");
-    showStatus(message, id, "MAILicious is checking this mail…");
+    showStatus(message, id, "MAILicious is checking this mail…", true);
     syncToolbar();
     const sender = message.querySelector(".gD[email], td.gF span[email]")?.getAttribute("email") ?? "";
     const anchors = [...body.querySelectorAll("a[href]")].filter((a) => /^https?:/i.test(a.href)).slice(0, 40);
@@ -221,15 +239,15 @@
     message.querySelector('[data-mailicious="status"]')?.remove();
   }
 
-  function showStatus(message, id, text) {
+  function showStatus(message, id, text, busy = false) {
     clearStatus(message);
     const { host, root } = shadowHost("status");
     host.style.setProperty("--c", "#a15c00");
-    root.append(el("span", "pill", text));
+    root.append(el("span", busy ? "pill busy" : "pill", text));
     (bodyOf(message)?.parentElement ?? message).prepend(host);
   }
 
-  const toolbarReport = ({ level, attack, reasons, nextStep, checks, mode, sender, evidence, sources }) => ({ level, attack, reasons, nextStep, checks, mode, sender, company: evidence?.company ?? null, sources });
+  const toolbarReport = ({ level, attack, reasons, nextStep, checks, mode, sender, evidence, sources, dna, dnaMatch, dnaToken }) => ({ level, attack, reasons, nextStep, checks, mode, sender, company: evidence?.company ?? null, sources, dna, dnaMatch, dnaToken });
 
   // The badge and popup describe every open mail in the thread, worst first, and only once all of them have a final verdict.
   // A check in progress, a failure or the inbox clears them, so an old verdict can never stand in for a new mail.
@@ -238,11 +256,12 @@
     const finished = open.filter((r) => r?.level);
     const worst = finished.reduce((a, b) => (SEVERITY[b.level] > SEVERITY[a.level] ? b : a), finished[0]);
     const complete = open.length > 0 && finished.length === open.length;
-    const next = complete ? `${open.length}:${worst.level}:${worst.sender}:${worst.reasons[0]}` : "";
+    const busy = open.includes("pending");
+    const next = complete ? `${open.length}:${worst.level}:${worst.sender}:${worst.reasons[0]}` : busy ? "busy" : "";
     if (next === badge) return;
     badge = next;
     try {
-      chrome.runtime.sendMessage(complete ? { type: "focus", result: toolbarReport(worst) } : { type: "clear" }, () => void chrome.runtime.lastError);
+      chrome.runtime.sendMessage(complete ? { type: "focus", result: toolbarReport(worst) } : { type: busy ? "scanning" : "clear" }, () => void chrome.runtime.lastError);
     } catch {
       badge = ""; // the extension was reloaded under this page
     }

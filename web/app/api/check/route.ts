@@ -1,5 +1,5 @@
 import { checkCompany, extractClaims, MAX_MAIL, signalFlags } from "@/lib/ai";
-import { dnaMatch, scamDna } from "@/lib/dna";
+import { canonical, dnaMatch, scamDna } from "@/lib/dna";
 import { dnaToken } from "@/lib/dna-token";
 import { addressOf, checkRules, claimedCompany, deepRules, findLinks, isCollegeOffice, isJobMail, looseAddress } from "@/lib/engine";
 import { analyzeHeaders, parseRawMail } from "@/lib/headers";
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
   const dna = scamDna(text);
   const scriptMatch = collegeSender || (proven && !!target && campus.genuine.includes(target)) ? null : dnaMatch(dna, campus.scripts);
   // The caller controls the sender and unreadBody, so only the mail's own words can vouch for a script. A match alone can't call clean words fake.
-  const riskyWords = checkRules(text, "", [], [], [], {}).level !== "low";
+  const riskyWords = checkRules(canonical(text), "", [], [], [], {}).level !== "low" || /\p{L}\p{Cf}\p{L}/u.test(text); // invisible characters inside a word are hiding something
   if (scriptMatch) unread.push({ code: "SCAM_DNA", level: riskyWords ? "high" : "medium", text: `This mail's script is a ${scriptMatch}% match for a scam your placement cell already marked fake, sent from a different address.` });
   // A different reply domain only stays a quiet note when the mail doesn't ask you to reply.
   const replyAsk = /\b(reply|respond|write back|get back to|send (us|me)|e-?mail us|mail us|contact us at)\b/i.test(text);

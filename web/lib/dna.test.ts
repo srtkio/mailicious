@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BLIND3 } from "@/fixtures/blind3";
 import { HOLDOUT } from "@/fixtures/holdout";
 import { MAILS } from "@/fixtures/mails";
-import { dnaDistance, dnaMatch, isDna, SAME_SCRIPT_BITS, scamDna } from "./dna";
+import { canonical, dnaDistance, dnaMatch, isDna, SAME_SCRIPT_BITS, scamDna } from "./dna";
 
 const SCAM =
   "Congratulations! You have been selected for the Microsoft summer internship 2026 at our Bangalore office. No interview is needed and your profile has been shortlisted by our senior recruitment team. Pay the refundable registration fee of Rs 1500 to our finance desk and share the OTP sent to your phone within 2 hours to confirm your seat. After confirmation you will receive your offer letter and joining kit. Failure to respond will cancel your selection.";
@@ -31,6 +31,14 @@ describe("scamDna", () => {
   it("sees through invisible characters and glued symbols", () => {
     expect(scamDna(SCAM.replace(/registration/g, "reg\u200Bistra\u200Dtion").replace(/selected/g, "sel\u00ADected"))).toBe(scamDna(SCAM));
     expect(scamDna(`${SCAM.replace(/ /g, "|")}|hr@fake.example`)).toBe(scamDna(SCAM));
+  });
+  it("reads text glued with dots, dashes and underscores, even beside an address", () => {
+    for (const glue of [".", "_", "-"]) expect(scamDna(`${SCAM.replace(/[.!]/g, "").replace(/ /g, glue)} hr@fake.example`)).toBe(scamDna(SCAM.replace(/[.!]/g, "")));
+    expect(scamDna(`${SCAM} pay-now.hr@fake.example`)).toBe(scamDna(`${SCAM} hr@other.example`));
+  });
+  it("reads the same words the rules should", () => {
+    expect(canonical("O\u200BT\u200BP")).toBe("OTP");
+    expect(canonical("ＯＴＰ")).toBe("OTP");
   });
   it("stays fast on a crafted run of one long word", () => {
     const start = performance.now();

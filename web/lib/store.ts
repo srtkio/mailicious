@@ -50,11 +50,25 @@ export async function campusVerdicts(): Promise<Verdicts> {
   // Fetched apart, so a failure here can't cost the blocklist above.
   try {
     const reported: { target: string; dna: unknown }[] = await (await rest("reports?select=target,dna&dna=not.is.null&order=id.desc&limit=2000")).json();
-    verdicts.scripts = [...new Set(reported.filter((r) => verdicts.fake.includes(r.target)).map((r) => r.dna).filter(isDna))];
+    verdicts.scripts = topScripts(reported, verdicts.fake);
   } catch (e) {
     console.error("campus scripts failed:", e);
   }
   return verdicts;
+}
+
+const SCRIPTS_PER_SENDER = 2; // a scammer reuses a script, so one verdict can never bless a flood of fingerprints
+
+// The most-reported fingerprints of each fake sender.
+export function topScripts(reported: { target: string; dna: unknown }[], fake: string[]): string[] {
+  const tally = new Map<string, Map<string, number>>();
+  for (const { target, dna } of reported) {
+    if (!isDna(dna) || !fake.includes(target)) continue;
+    const counts = tally.get(target) ?? new Map<string, number>();
+    tally.set(target, counts.set(dna, (counts.get(dna) ?? 0) + 1));
+  }
+  const top = [...tally.values()].flatMap((counts) => [...counts].sort((a, b) => b[1] - a[1]).slice(0, SCRIPTS_PER_SENDER).map(([dna]) => dna));
+  return [...new Set(top)];
 }
 
 export async function logEvent(level: string, attack: string | null): Promise<void> {

@@ -89,6 +89,7 @@ export default function DashboardPage() {
                     <span className="block text-muted">
                       {q.count} {q.count === 1 ? "report" : "reports"}
                       {q.attack ? `, ${q.attack}` : ""}
+                      {q.script ? ". Marking it fake also blocks this mail's script" : ""}
                     </span>
                   </span>
                   <span className="flex gap-3">

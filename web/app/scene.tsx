@@ -18,11 +18,12 @@ const VERDICT = FIRST_CHECK + CHECKS.length;
 const STAMP = VERDICT + 1;
 const GAPS = [500, 700, ...CHECKS.map(() => 380), 450, 500];
 
-export function HeroScene() {
+export function HeroScene({ play = true }: { play?: boolean }) {
   const [stage, setStage] = useState(0);
   const [run, setRun] = useState(0);
 
   useEffect(() => {
+    if (!play) return; // holds until the opening animation has lifted
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
       const done = setTimeout(() => setStage(STAMP), 0);
       return () => clearTimeout(done);
@@ -33,7 +34,7 @@ export function HeroScene() {
       return setTimeout(() => setStage(i + 1 > STAMP ? STAMP : i), elapsed);
     });
     return () => timers.forEach(clearTimeout);
-  }, [run]);
+  }, [run, play]);
 
   const scanning = stage >= SCAN && stage < VERDICT;
   return (

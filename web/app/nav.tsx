@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ScrollBar } from "./motion";
 
 const LINKS = [
   ["guide", "Guide"],
   ["how", "How it works"],
+  ["standouts", "Stand-outs"],
   ["drill", "Scam Drill"],
   ["radar", "Live Radar"],
   ["check", "Try it"],
@@ -54,11 +56,12 @@ export function Nav() {
           <Link href="/technology" className="border-b-2 border-transparent py-1 text-white/70 hover:text-white">
             Technology
           </Link>
-          <a href="#extension" className="bg-flame px-3 py-1.5 font-bold text-black hover:bg-white">
+          <a href="#extension" className="shine bg-flame px-3 py-1.5 font-bold text-black hover:bg-white">
             Get the extension
           </a>
         </span>
       </div>
+      <ScrollBar />
     </nav>
   );
 }

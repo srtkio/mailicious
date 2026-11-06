@@ -4,7 +4,10 @@
 const STOP = new Set(
   "the and for that this with from your you are was were have has had will would can could should our their they them his her its not but all any been being into about over more than then there here what when which who whom how why also just very only some such each other out use using via per please dear hello regards thanks thank sir madam team".split(" "),
 );
-const MIN_FEATURES = 24; // too few words and every short mail starts to look alike
+// Every placement mail uses these, so they say nothing about which script this is.
+const SHARED = new Set("internship internships intern interns job jobs offer offers candidate candidates student students selected shortlisted placement placements company companies hiring interview interviews role roles position positions salary stipend apply application applications career careers campus college office profile opportunity opening openings summer recruitment".split(" "));
+const MIN_FEATURES = 20; // too few words and every short mail starts to look alike
+const WORD_WEIGHT = 3; // a reworded mail keeps its words longer than their exact order
 const MAX_WORDS = 800;
 const BITS = 64;
 const MASK = (1n << 64n) - 1n;
@@ -12,17 +15,21 @@ const MASK = (1n << 64n) - 1n;
 // How close two fingerprints must be to count as one script. Every pair of unrelated test mails is further apart than this: dna.test.ts enforces it.
 export const SAME_SCRIPT_BITS = 14;
 
-function words(text: string): string[] {
-  return text
+// What the mail says once invisible tricks are gone. The rules read this too, so both see the same words.
+export const canonical = (text: string) =>
+  text
     .normalize("NFKC") // full-width and styled letters read as plain ones
-    .replace(/\p{Cf}/gu, "") // zero-width characters hide inside words
+    .replace(/\p{Cf}/gu, ""); // zero-width characters hide inside words
+
+function words(text: string): string[] {
+  return canonical(text)
     .toLowerCase()
-    .split(/[^\p{L}\p{N}@.:/+_-]+/u) // any other symbol separates words, so one stray @ can't swallow a sentence
-    .filter((w) => !w.includes("@") && !/https?:|www\./.test(w)) // links and addresses are what scammers swap first
+    .split(/[^\p{L}\p{N}@.:/+_-]+/u) // any other symbol separates words, so glued text still splits
+    .map((w) => w.replace(/[\w.+-]{1,64}@[\w.-]{1,255}|https?:\S{0,2000}|www\.\S{0,2000}/g, " ")) // links and addresses are what scammers swap first
     .join(" ")
     .replace(/[^\p{L}\s]/gu, " ")
     .split(/\s+/)
-    .filter((w) => w.length > 2 && !STOP.has(w))
+    .filter((w) => w.length > 2 && !STOP.has(w) && !SHARED.has(w))
     .slice(0, MAX_WORDS);
 }
 
@@ -37,13 +44,15 @@ function hash(feature: string): bigint {
 
 export function scamDna(text: string): string | null {
   const list = words(text);
-  const features = [...list, ...list.slice(1).map((w, i) => `${list[i]} ${w}`)];
-  if (features.length < MIN_FEATURES) return null;
+  const pairs = list.slice(1).map((w, i) => `${list[i]} ${w}`);
+  if (list.length + pairs.length < MIN_FEATURES) return null;
   const tally = new Array<number>(BITS).fill(0);
-  for (const f of features) {
-    const h = hash(f);
-    for (let bit = 0; bit < BITS; bit++) tally[bit] += (h >> BigInt(bit)) & 1n ? 1 : -1;
-  }
+  const count = (feature: string, weight: number) => {
+    const h = hash(feature);
+    for (let bit = 0; bit < BITS; bit++) tally[bit] += (h >> BigInt(bit)) & 1n ? weight : -weight;
+  };
+  for (const w of list) count(w, WORD_WEIGHT);
+  for (const p of pairs) count(p, 1);
   let dna = 0n;
   for (let bit = 0; bit < BITS; bit++) if (tally[bit] > 0) dna |= 1n << BigInt(bit);
   return dna.toString(16).padStart(16, "0");

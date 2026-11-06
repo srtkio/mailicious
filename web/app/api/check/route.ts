@@ -1,7 +1,7 @@
 import { checkCompany, extractClaims, MAX_MAIL, signalFlags } from "@/lib/ai";
 import { canonical, dnaMatch, scamDna } from "@/lib/dna";
 import { dnaToken } from "@/lib/dna-token";
-import { addressOf, checkReadings, claimedCompany, deepRules, findLinks, isCollegeOffice, isJobMail, looseAddress } from "@/lib/engine";
+import { addressOf, checkReadings, claimedCompany, hidesCharacters, deepRules, findLinks, isCollegeOffice, isJobMail, looseAddress } from "@/lib/engine";
 import { analyzeHeaders, parseRawMail } from "@/lib/headers";
 import { threatIntel } from "@/lib/intel";
 import { checkLinks } from "@/lib/links";
@@ -61,6 +61,8 @@ export async function POST(request: Request) {
   if (parsed?.partial) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: "This mail is built in a way that stopped us reading all of it." });
   if (everyLink.length > MAX_LINKS || uniquePairs.length > linkPairs.length) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: `This mail has ${everyLink.length} links, too many to check them all.` });
   if (parsed && parsed.text.length > MAX_TEXT) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: "This mail is too long to read in full." });
+
+  if (hidesCharacters(text)) unread.push({ code: "HIDDEN_CHARACTERS", level: "medium", text: "This mail hides invisible characters inside its words, a trick for slipping past filters." });
 
   const deadline = new Promise<null>((resolve) => setTimeout(() => resolve(null), AI_BUDGET_MS));
   // Only a DMARC-proved From address earns trust; a sender typed into the form proves nothing.

@@ -61,7 +61,8 @@ export async function campusVerdicts(): Promise<Verdicts> {
 }
 
 const SCRIPTS_PER_SENDER = 2; // a scammer reuses a script, so one verdict can never bless a flood of fingerprints
-const SCRIPT_SENDERS = 100; // shortcut: keeps the query short, so only the latest 100 fake senders' scripts apply. Store scripts on the verdict if a campus outgrows that.
+// shortcut: only the latest 100 fake senders count, and one window of 2000 reports is shared between them, so thousands of pre-verdict reports could crowd others out. Store scripts on the verdict row to fix both.
+const SCRIPT_SENDERS = 100;
 
 // The most-reported fingerprints of each sender.
 export function topScripts(reported: { target: string; dna: unknown }[]): string[] {

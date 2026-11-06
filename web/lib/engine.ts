@@ -356,6 +356,9 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   };
 }
 
+// Zero-width characters between Latin letters have no honest use. Soft hyphens and Indic scripts use theirs legitimately, so they're left out.
+export const hidesCharacters = (text: string) => /[a-z][\u200B-\u200D\u2060\uFEFF][a-z]/i.test(text);
+
 // Invisible characters can split a word or replace the spaces around one, so both readings are checked and the worse one stands.
 export function checkReadings(text: string, ...rest: Parameters<typeof checkRules> extends [string, ...infer R] ? R : never) {
   const [joined, spaced] = [canonical(text), canonical(text, " ")];

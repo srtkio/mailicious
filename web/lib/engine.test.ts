@@ -1,6 +1,6 @@
 // Fixture checks for the rules engine. All messages and addresses are fictional.
 import { describe, expect, it } from "vitest";
-import { addressOf, checkRules, deepRules, looseAddress, checkReadings } from "./engine";
+import { addressOf, checkReadings, checkRules, deepRules, hidesCharacters, looseAddress } from "./engine";
 
 const cases: { name: string; text: string; sender?: string; blocked?: string[]; level: string; code?: string }[] = [
   { name: "asks for OTP", text: "Congratulations on your selection. Please share the OTP sent to your phone to confirm.", level: "high", code: "ASKS_SECRET" },
@@ -234,6 +234,15 @@ describe("deepRules", () => {
   it("names the attack on the result", () => {
     expect(checkRules("Internship: pay the registration fee of Rs 500.").attack).toBe("Advance-fee scam");
     expect(checkRules("Hello there.").attack).toBeNull();
+  });
+});
+
+describe("hidesCharacters", () => {
+  it("spots zero-width characters inside Latin words, however they're mixed", () => {
+    expect(hidesCharacters("send\u200Bthe O\u200DTP")).toBe(true);
+  });
+  it("leaves soft hyphens, Hindi and clean text alone", () => {
+    for (const text of ["inter\u00ADnational", "क्\u200Dष", "A normal line of text."]) expect(hidesCharacters(text)).toBe(false);
   });
 });
 

@@ -163,6 +163,7 @@ Before text goes to Gemini, we hide PAN-shaped IDs, password values, codes near 
 - Rules are deliberately cautious: they'd rather flag a real mail than miss a scam.
 - Scam DNA can't match a complete rewrite, and it was tuned on our test mails, not on live campus mail.
 - Someone could add scam wording to a real mail to get its fingerprint signed. That still needs a person to mark their sender fake, a match on clean words only reaches Check first, and marking the sender genuine undoes it.
+- Scam DNA reads the latest 100 fake senders and a shared window of 2,000 reports, so a flood before a verdict could crowd other scripts out. Storing scripts on the verdict row would fix this.
 - A valid GSTIN or CIN only proves the number is well formed, not that it belongs to the company. A careful forger can copy a real number and clear the file's metadata.
 - Damage Control is guidance. It can't recover money itself.
 

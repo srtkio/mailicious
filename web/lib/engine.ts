@@ -4,6 +4,8 @@ import type { CheckResult, Flag, Intent, Level, LinkPair } from "./types";
 
 export const COLLEGE_DOMAIN = "rishihood.edu.in";
 export const PLACEMENT_SENDERS = ["placement@rishihood.edu.in"];
+// Office accounts vs personal ones like manjistha.b@. Names come from real college mail; the dashboard's "Mark genuine" covers the rest.
+const OFFICE_ACCOUNT = /learner|council|office|manager|academic|director|registrar|admission|placement|career|library|hostel|finance|committee|society|alumni|helpdesk|support|examination|(^|[._-])(club|cell|dean|admin|exam|dept|hod|info|contact|noreply|no-reply|accounts?)([._-]|$)/;
 
 // shortcut: hard-coded seed list, move to the Supabase `companies` table once it exists.
 export const COMPANIES: Record<string, string[]> = {
@@ -40,9 +42,15 @@ const NEXT_STEP: Record<string, string> = {
   DANGEROUS_ATTACHMENT: "Don't open the attachment. It can install malware on your device.",
   KNOWN_MALICIOUS: "Don't open the link. Security services already list it as dangerous.",
   NEW_DOMAIN: "Be careful: real recruiters don't use websites this new. Verify with the placement cell.",
+  REMOTE_ACCESS: "Don't install it. Nobody hiring you needs control of your device.",
+  MONEY_MULE: "Don't do this. Moving money for strangers is illegal even if you keep nothing. Tell the placement cell.",
+  OUTSIDE_FORM: "Check who sent this before filling the form, and never enter passwords, ID or bank details in it.",
+  PAYMENT_NOTICE: "Pay only through the official college portal, never by UPI or a link in a mail.",
   HACKED_ACCOUNT: "Call or meet the sender in person to confirm they sent this, before you open the link.",
 };
 const DEFAULT_NEXT = "Don't act on this mail yet. Verify it with the placement cell or the company's official careers page.";
+const TRUSTED_NEXT = "This looks genuine, so you can go ahead with what the mail asks.";
+const COLLEGE_NEXT = "This is a real college account. If it asks for anything unusual, confirm with the person directly.";
 const LOW_NEXT = "No common warning signs, but only apply through the company's official careers site or the placement portal.";
 
 const SECOND_LEVEL = /^(co|org|net|ac|edu|gov|gen|firm|res)$/;
@@ -71,19 +79,20 @@ export const ID_OR_BANK = /\b(aadhaa?r|pan\b|pan card|bank account|account numbe
 // A code sent to you that you're asked to pass on, whatever it's called. Requires both halves, and no word near
 // "code" can clear it. Entering a code on a site is normal, so only handing it to a person counts.
 const CODE_SENT = /\b\d[- ]digit\s+(number|code|pin)\b|\b(activation|security|login|confirmation|access|sms|secret|unique)\s+code\b|\bcode\b[^.!?\n]{0,60}\b(sms|text message|mobile|phone)\b|\b(sms|text message|mobile|phone)\b[^.!?\n]{0,60}\bcode\b/i;
-const PASS_BACK = /\b(shar(e|ing)|send|forward(ing)?|tell|reply|give|mention)\b/i;
+const PASS_BACK = /\b(shar(e|ing)|send|forward(ing)?|tell|reply|give|mention|provide|submit)\b/i;
 const THE_CODE = /\b(that|this|the|same)\s+(code|number|pin)\b|\bcode\b|\bit\b/i;
 
-const AMOUNT = /(?:\brs\b\.?|\binr\b|₹)\s*\d[\d,]*|\b\d[\d,]*\s*(?:rupees|inr|\/-)/gi;
+const AMOUNT = /(?:\brs(?![a-z])\.?|\binr(?![a-z])|₹)\s*\d[\d,]*|\b\d[\d,]*\s*(?:rupees|inr|\/-)/gi;
 // Money you'd receive only counts when the wording binds it to this amount, so a salary nearby can't clear a fee.
-const INCOME_BEFORE = /\b(stipend|salary|ctc|package|allowance|bonus|scholarship|prize|pay of|pay you|paid)\b\s*(of|is|are|:|will be|=|up to)?\s*$/i;
+const INCOME_BEFORE = /\b(stipend|salary|ctc|package|allowance|bonus|scholarship|prize|pay of|pay you)\b\s*(of|is|are|:|will be|=|up to)?\s*$/i;
 const INCOME_AFTER = /^\s*(\/-)?\s*(per month|\/\s*month|monthly|a month|lpa|stipend|salary|ctc|allowance|bonus|scholarship)\b/i;
 // Clears a fee only when these words are tied to it, or when warning about someone else asking. The rest of the sentence is still read.
-const SETTLED_FEE = /\b(fees?|charges)\b[^.!?\n]{0,40}?\b(is|are|has been|have been|will be)\s+(waived|included in (your|the) (semester|tuition|college) fees?)/gi;
-const FEE_WARNING = /\bif\s+(any\s+\w+|anyone|someone|a\s+\w+)\s+(asks?|demands?|requests?)\s+(you\s+)?(for\s+)?(a\s+|any\s+)?(fees?|money|payment|deposit)\b/gi;
+const SETTLED_FEE = /\b(fees?|charges)\b(?:(?!\b(?:pay|transfer|deposit)\b|₹|\brs\b|\binr\b)[^.!?\n]){0,40}?\b(is|are|has been|have been|will be)\s+(waived|included in (your|the) (semester|tuition|college) fees?)/gi;
+// Only with an instruction to report it, so "if anyone asks for a fee, pay the deposit" stays a demand.
+const FEE_WARNING = /\bif\s+(any\s+\w+|anyone|someone|a\s+\w+)\s+(asks?|demands?|requests?)\s+(you\s+)?(for\s+)?(a\s+|any\s+)?(fees?|money|payment|deposit)\b[^.!?\n]{0,50}?\b(report|tell|inform|ignore|contact)\b/gi;
 const CREDENTIALS = /\b(verify|confirm|validate|update)\s+(your\s+)?(account|mailbox|email|login|credentials)\b|\bmailbox\b[^.!?\n]{0,30}\bfull\b/i;
 // Naming a tool isn't claiming to be the company that makes it.
-const TOOL_NAMES = /\b(google\s+(meet|forms?|drive|docs?|sheets?|classroom|calendar)|microsoft\s+(teams|office|word|excel|forms?|outlook)|amazon\s+(pay|prime|web services))\b/gi;
+const TOOL_NAMES = /\b(on|via|using|through|over|join|in|fill|this|the|a)\s+(google\s+(meet|forms?|drive|docs?|sheets?|classroom|calendar)|microsoft\s+(teams|office|word|excel|forms?|outlook))\b(?!\s+(intern\w*|team|hiring|offer|job|role|program\w*|recruit\w*))/gi;
 
 // An amount to pay that isn't called a fee, like "laptop shipping amount of ₹899 must be cleared".
 function asksForMoney(text: string): boolean {
@@ -180,7 +189,12 @@ export function deepRules({ sender = "", links = [], linkPairs = [], attachments
   return flags;
 }
 
-export function checkRules(text: string, sender = "", links: string[] = [], blockedDomains: string[] = [], extra: Flag[] = []): CheckResult {
+// What sender proof can settle: these depend on who's writing, so a proven office sender clears them.
+const SOFT_FOR_TRUSTED = ["OUTSIDE_FORM", "LINK_MISMATCH", "WRONG_DOMAIN", "COMPANY_DOMAIN_MISMATCH", "TOO_GOOD", "REALITY_CHECK", "URGENCY", "HACKED_ACCOUNT"];
+// authenticated: DMARC proved the From address. genuine: the placement cell vouched for this sender.
+export type SenderContext = { authenticated?: boolean; genuine?: boolean };
+
+export function checkRules(text: string, sender = "", links: string[] = [], blockedDomains: string[] = [], extra: Flag[] = [], context: SenderContext = {}): CheckResult {
   const flags: Flag[] = [];
   const add = (code: string, level: Level, msg: string) => flags.push({ code, level, text: msg });
   const jobby = JOBBY.test(text);
@@ -192,7 +206,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
     add("ASKS_SECRET", "high", "It asks you to share an OTP or password. No real recruiter ever needs this.");
   // Matches money *you* pay (fee/deposit, "pay ₹500"), not salary text like "pay of ₹20,000".
   const feeText = text.replace(SETTLED_FEE, " ").replace(FEE_WARNING, " ");
-  if (asks(feeText, /\b(fee|fees|deposit|charges)\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i) || asksForMoney(feeText))
+  if (asks(feeText, /\b(fee|fees|deposit|charges(?!\s+(no|zero|nothing)\b))\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i) || asksForMoney(feeText))
     add("ASKS_FEE", "high", "It asks you to pay money. Real companies don't charge you to get hired.");
   if (asks(text, ID_OR_BANK, shareVerb))
     add("ASKS_DOCUMENTS", "high", "It asks for ID or bank details over mail before any formal process.");
@@ -208,6 +222,10 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   const senderAddr = sender.trim().toLowerCase();
   const senderHost = senderAddr.includes("@") ? senderAddr.split("@").pop()! : "";
   const company = claimedCompany(text);
+  const onCollege = !!senderHost && isOn(senderHost, [COLLEGE_DOMAIN]);
+  const verifiedCollege = !!context.authenticated && onCollege;
+  const office = verifiedCollege && OFFICE_ACCOUNT.test(senderAddr.split("@")[0]);
+  const trusted = office || (!!context.authenticated && !!context.genuine);
   let senderEvidence: string | null = null;
 
   if (senderHost && isOn(senderHost, blockedDomains))
@@ -222,7 +240,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
       add("FREE_MAIL_CLAIM", "medium", `It claims to be ${name} but was sent from a personal ${senderHost} address.`);
     } else if (unswap(senderHost).includes(company)) {
       add("LOOKALIKE_DOMAIN", "high", `${senderHost} imitates ${name}'s domain but isn't ${official[0]}.`);
-    } else if (senderHost !== COLLEGE_DOMAIN) {
+    } else if (!onCollege) {
       add("WRONG_DOMAIN", "medium", `It claims to be ${name}, but ${senderHost} isn't ${name}'s official domain.`);
     }
   } else if (senderHost && FREE_MAIL.includes(senderHost) && jobby) {
@@ -242,26 +260,42 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
     add("OUTSIDE_FORM", "medium", `It asks you to fill an outside form (${formHost}) instead of a company careers portal.`);
 
   // --- own-org sender: real college account, content that doesn't fit (possible hacked account) ---
-  if (senderHost === COLLEGE_DOMAIN && !PLACEMENT_SENDERS.includes(senderAddr) && jobby && (company || formHost || hosts.length))
-    add("HACKED_ACCOUNT", "medium", "It's from a real college account, but offers like this come only from the placement cell. The account may be hacked.");
+  if (onCollege && !PLACEMENT_SENDERS.includes(senderAddr) && jobby && (company || formHost || hosts.length))
+    add("HACKED_ACCOUNT", "medium", "This is a personal college account, not a college office. Offers usually come from the placement cell, so confirm with the sender first.");
 
   flags.unshift(...extra); // proof beats pattern matching for the two reasons on the card
+
+  if (trusted) {
+    for (let i = flags.length - 1; i >= 0; i--) if (SOFT_FOR_TRUSTED.includes(flags[i].code)) flags.splice(i, 1);
+    const fee = flags.findIndex((f) => f.code === "ASKS_FEE");
+    if (fee >= 0) flags[fee] = { code: "PAYMENT_NOTICE", level: "medium", text: "A verified college office mentions a payment." };
+  }
+  // Sender proof can't excuse these: a hacked account passes every check.
+  if (verifiedCollege && flags.some((f) => ["ASKS_SECRET", "ASKS_DOCUMENTS"].includes(f.code)))
+    flags.unshift({ code: "HACKED_ACCOUNT", level: "high", text: "This really came from a college account, but college offices never ask for this by mail. The account may be hacked." });
 
   // dedupe by code, keeping the most severe
   const unique = [...flags].sort((a, b) => RANK[b.level] - RANK[a.level]).filter((f, i, all) => all.findIndex((g) => g.code === f.code) === i);
   const level: Level = unique.length ? unique[0].level : "low";
   const top = unique[0];
+  const note = office
+    ? `Verified college office: ${senderAddr}. It passed the sender checks.`
+    : verifiedCollege
+      ? `Verified college account: ${senderAddr}. It passed the sender checks.`
+      : trusted
+        ? `Your placement cell marked ${senderAddr} as genuine, and it passed the sender checks.`
+        : null;
 
   return {
     level,
-    reasons: unique.length ? unique.slice(0, 2).map((f) => f.text) : ["No common warning signs found in this text. That doesn't prove it's real."],
-    nextStep: level === "low" ? LOW_NEXT : NEXT_STEP[top.code] ?? DEFAULT_NEXT,
+    reasons: level === "low" && note ? [note, ...unique.slice(0, 1).map((f) => f.text)] : unique.length ? unique.slice(0, 2).map((f) => f.text) : ["No common warning signs found in this text. That doesn't prove it's real."],
+    nextStep: level === "low" ? (trusted ? TRUSTED_NEXT : verifiedCollege ? COLLEGE_NEXT : LOW_NEXT) : (NEXT_STEP[top.code] ?? DEFAULT_NEXT),
     intent: intentOf(unique, text, !!formHost, hosts.length > 0),
     flags: unique,
     evidence: {
-      sender: senderEvidence ?? unique.find((f) => ["FREE_MAIL_CLAIM", "LOOKALIKE_DOMAIN", "WRONG_DOMAIN", "COMPANY_DOMAIN_MISMATCH", "BLOCKED_SENDER", "HACKED_ACCOUNT"].includes(f.code))?.text ?? null,
+      sender: senderEvidence ?? unique.find((f) => ["FREE_MAIL_CLAIM", "LOOKALIKE_DOMAIN", "WRONG_DOMAIN", "COMPANY_DOMAIN_MISMATCH", "BLOCKED_SENDER", "HACKED_ACCOUNT"].includes(f.code))?.text ?? (trusted || verifiedCollege ? note : null),
       company: null,
-      link: ["FORM_ASKS_DATA", "FORM_MISMATCH", "RAW_IP_LINK", "SHORT_LINK_TARGET", "SHORT_LINK", "LINK_NOT_CHECKED", "LINK_MISMATCH", "OUTSIDE_FORM"].map((c) => unique.find((f) => f.code === c)?.text).find(Boolean) ?? null,
+      link: ["FORM_ASKS_DATA", "FORM_MISMATCH", "FORM_READ", "RAW_IP_LINK", "SHORT_LINK_TARGET", "SHORT_LINK", "LINK_NOT_CHECKED", "LINK_MISMATCH", "OUTSIDE_FORM"].map((c) => unique.find((f) => f.code === c)?.text).find(Boolean) ?? null,
     },
     sources: [],
     attack: attackOf(unique),
@@ -277,6 +311,8 @@ const ATTACKS: [string, string][] = [
   ["KNOWN_MALICIOUS", "Known phishing or malware site"],
   ["ASKS_FEE", "Advance-fee scam"],
   ["ASKS_DOCUMENTS", "Identity theft"],
+  ["REMOTE_ACCESS", "Remote access scam"],
+  ["MONEY_MULE", "Money mule scam"],
   ["ASKS_LOGIN", "Account phishing"],
   ["AUTH_FAIL", "Email spoofing"],
   ["HIDDEN_LINK", "Disguised link phishing"],

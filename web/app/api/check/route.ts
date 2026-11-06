@@ -4,7 +4,8 @@ import { analyzeHeaders, parseRawMail } from "@/lib/headers";
 import { threatIntel } from "@/lib/intel";
 import { checkLinks } from "@/lib/links";
 import { securityReport } from "@/lib/report";
-import { blockedTargets, logEvent, reportTarget } from "@/lib/store";
+import { clientIp, underLimit } from "@/lib/limit";
+import { campusVerdicts, logEvent, reportTarget } from "@/lib/store";
 import type { CheckRequest, Flag } from "@/lib/types";
 
 const MAX_TEXT = 20_000;
@@ -14,21 +15,6 @@ const MAX_HEADERS = 64_000;
 
 const AI_PER_MINUTE = 20;
 const AI_BUDGET_MS = 15_000; // model retries can stack past 45s when Gemini is busy, and a worried student won't wait
-const aiCalls = new Map<string, { count: number; start: number }>();
-
-// Over the limit means rules and link checks only, never an error: a whole campus can share one IP.
-// shortcut: counts per server instance, so it slows abuse rather than stopping it; move to Supabase or Redis if quotas drain.
-function underAiLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = aiCalls.get(ip);
-  if (!entry || now - entry.start > 60_000) {
-    if (aiCalls.size > 5000) aiCalls.clear();
-    aiCalls.set(ip, { count: 1, start: now });
-    return true;
-  }
-  return ++entry.count <= AI_PER_MINUTE;
-}
-
 const isStrings = (v: unknown, count: number, length: number) => Array.isArray(v) && v.length <= count && v.every((x) => typeof x === "string" && x.length <= length);
 
 export async function POST(request: Request) {
@@ -70,19 +56,18 @@ export async function POST(request: Request) {
   if (everyLink.length > MAX_LINKS || uniquePairs.length > linkPairs.length) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: `This mail has ${everyLink.length} links, too many to check them all.` });
   if (parsed && parsed.text.length > MAX_TEXT) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: "This mail is too long to read in full." });
 
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "local";
   const deadline = new Promise<null>((resolve) => setTimeout(() => resolve(null), AI_BUDGET_MS));
-  const claims = underAiLimit(ip) ? await Promise.race([extractClaims(text, sender), deadline]) : null;
+  const claims = underLimit(`ai:${clientIp(request)}`, AI_PER_MINUTE) ? await Promise.race([extractClaims(text, sender), deadline]) : null;
   const seed = claimedCompany(text);
   const lookup = claims && { ...claims, company: claims.company ?? seed ?? null };
-  const [company, linkFlags, intel, blocked] = await Promise.all([
+  const [company, linkFlags, intel, campus] = await Promise.all([
     lookup ? Promise.race([checkCompany(lookup, sender, seed), deadline]) : null,
     checkLinks(text, allLinks, seed ?? claims?.company ?? undefined),
     threatIntel(sender, allLinks).catch(() => ({ flags: [], checks: [] })),
-    blockedTargets(),
+    campusVerdicts(),
   ]);
   const target = reportTarget(sender);
-  if (target?.includes("@") && blocked.includes(target)) unread.push({ code: "BLOCKED_SENDER", level: "high", text: "Your placement cell already marked this address as fake." });
+  if (target?.includes("@") && campus.fake.includes(target)) unread.push({ code: "BLOCKED_SENDER", level: "high", text: "Your placement cell already marked this address as fake." });
   const extra = [
     ...unread,
     ...signalFlags(claims?.signals ?? []),
@@ -92,7 +77,9 @@ export async function POST(request: Request) {
     ...intel.flags,
     ...deepRules({ sender, links: allLinks, linkPairs, attachments: files }),
   ];
-  const result = checkRules(text, sender, allLinks, blocked.filter((b) => !b.includes("@")), extra);
+  // Only a DMARC-proved From address earns trust; a sender typed into the form proves nothing.
+  const proven = !!headers?.authenticated && headers.from === sender.trim().toLowerCase();
+  const result = checkRules(text, sender, allLinks, campus.fake.filter((b) => !b.includes("@")), extra, { authenticated: proven, genuine: !!target && campus.genuine.includes(target) });
   await logEvent(result.level, result.attack);
 
   return Response.json({
@@ -100,7 +87,7 @@ export async function POST(request: Request) {
     sender,
     evidence: { ...result.evidence, company: company?.summary ?? null },
     sources: company?.sources ?? [],
-    checks: securityReport(result.flags, [...(headers?.checks ?? []), ...intel.checks], { sender: !!sender, links: allLinks.length > 0, headers: !!headers }),
+    checks: securityReport(result.flags, [...(headers?.checks ?? []), ...intel.checks], { sender: !!sender, links: allLinks.length > 0, headers: !!headers, identity: proven ? result.evidence.sender : null }),
     mode: lookup && (company || (!lookup.company && !lookup.rejected)) ? "full" : "limited", // no company anywhere means nothing to look up, not a failure
   });
 }

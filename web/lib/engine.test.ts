@@ -49,6 +49,55 @@ describe("checkRules", () => {
   });
 });
 
+describe("sender context", () => {
+  const authenticated = { authenticated: true };
+  const form = "Please fill this feedback form for the career session: https://forms.gle/abc";
+  const codes = (r: { flags: { code: string }[] }) => r.flags.map((f) => f.code);
+
+  it("trusts a verified college office, including on a subdomain", () => {
+    for (const sender of ["learnercareercouncil@nst.rishihood.edu.in", "robotics.club@rishihood.edu.in", "director.academics@nst.rishihood.edu.in", "library@rishihood.edu.in"]) {
+      const r = checkRules(`${form} Interview tips included.`, sender, [], [], [], authenticated);
+      expect(r.level, sender).toBe("low");
+      expect(r.reasons[0]).toContain("Verified college office");
+      expect(r.nextStep).toContain("looks genuine");
+    }
+  });
+  it("gives no trust without proof, whatever the address says", () => {
+    const r = checkRules(`${form} Interview tips.`, "placement.office@nst.rishihood.edu.in");
+    expect(r.level).toBe("medium");
+    expect(checkRules(`${form} Interview tips.`, "placement@rishihood-jobs.example", [], [], [], authenticated).level).toBe("medium");
+  });
+  it("asks a verified personal account to be confirmed when it pushes an outside offer", () => {
+    const r = checkRules("Google internship offer! Apply on this form: https://forms.gle/abc", "manjistha.b@rishihood.edu.in", [], [], [], authenticated);
+    expect(r.level).toBe("medium");
+    expect(codes(r)).toContain("HACKED_ACCOUNT");
+  });
+  it("calls out a hacked account when a verified sender asks for an OTP", () => {
+    for (const sender of ["manjistha.b@rishihood.edu.in", "learnercareercouncil@nst.rishihood.edu.in"]) {
+      const r = checkRules("Please share the OTP you received.", sender, [], [], [], authenticated);
+      expect(r.level).toBe("high");
+      expect(r.reasons[0]).toContain("may be hacked");
+    }
+  });
+  it("turns a verified office's fee into portal advice, but only for an office", () => {
+    const office = checkRules("The program fee of Rs 2,000 is payable this week.", "learnercareercouncil@nst.rishihood.edu.in", [], [], [], authenticated);
+    expect(office.level).toBe("medium");
+    expect(office.nextStep).toContain("college portal");
+    expect(office.attack).toBeNull();
+    expect(checkRules("The program fee of Rs 2,000 is payable.", "manjistha.b@rishihood.edu.in", [], [], [], authenticated).level).toBe("high");
+  });
+  it("trusts a sender the placement cell vouched for only with proof", () => {
+    const text = "Microsoft internship interview next week.";
+    expect(checkRules(text, "hr@partner.example", [], [], [], { authenticated: true, genuine: true }).level).toBe("low");
+    expect(checkRules(text, "hr@partner.example", [], [], [], { genuine: true }).level).toBe("medium");
+  });
+  it("never lets trust clear a dangerous attachment or a blocklisted sender", () => {
+    const extra = [{ code: "DANGEROUS_ATTACHMENT", level: "high" as const, text: "x" }];
+    expect(checkRules("Hello.", "library@rishihood.edu.in", [], [], extra, authenticated).level).toBe("high");
+    expect(checkRules("Hello.", "library@rishihood.edu.in", [], ["rishihood.edu.in"], [], authenticated).level).toBe("high");
+  });
+});
+
 describe("deepRules", () => {
   const codes = (input: Parameters<typeof deepRules>[0]) => deepRules(input).map((f) => f.code);
   it("catches a link disguised as another site", () => {
@@ -96,6 +145,21 @@ describe("deepRules", () => {
     expect(level("Stipend is Rs 25,000 per month, paid on the 5th.")).toBe("low");
     expect(level("We will pay you Rs 30,000 and the travel allowance of Rs 2,000 after joining.")).toBe("low");
     expect(level("The fee is included in your semester fees. You do not need to pay anyone.")).toBe("low");
+  });
+  it("holds up against the review's bypasses", () => {
+    const level = (t: string) => checkRules(t).level;
+    expect(level("Kit costs Rs899, kindly transfer it.")).toBe("high");
+    expect(level("Kit costs INR1999, pay today.")).toBe("high");
+    expect(level("The amount to be paid is ₹899 today.")).toBe("high");
+    expect(level("We sent a code to your phone. Please provide that code.")).toBe("high");
+    expect(level("The fee of Rs 500 to pay now is waived after you transfer it.")).toBe("high");
+    expect(level("If anyone asks you for a fee, pay it.")).toBe("high");
+    expect(level("If anyone asks you for a fee, report it to the cell.")).toBe("low");
+    expect(level("The scheme charges no registration fee.")).toBe("low");
+  });
+  it("still sees a brand behind a tool name", () => {
+    expect(checkRules("Google Meet intern offer: interview soon.", "hr@acme.example").flags.map((f) => f.code)).toContain("WRONG_DOMAIN");
+    expect(checkRules("Microsoft Teams hiring now, interview next week.", "hr@acme.example").flags.map((f) => f.code)).toContain("WRONG_DOMAIN");
   });
   it("doesn't read a tool as a claim to be its maker", () => {
     expect(checkRules("Your interview is on Google Meet.", "hr@acme.example").level).toBe("low");

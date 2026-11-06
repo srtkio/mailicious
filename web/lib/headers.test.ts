@@ -12,6 +12,8 @@ const codes = (h: string) => analyzeHeaders(h).flags.map((f) => f.code);
 describe("analyzeHeaders", () => {
   it("passes a fully authenticated mail", () => {
     const r = analyzeHeaders(head("spf=pass; dkim=pass; dmarc=pass"));
+    expect(r.authenticated).toBe(true);
+    expect(analyzeHeaders(head("spf=pass; dkim=pass; dmarc=none")).authenticated).toBe(false);
     expect(r.flags).toEqual([]);
     expect(r.from).toBe("hr@acme.example");
     expect(r.checks[0]).toMatchObject({ label: "Sender authentication", status: "pass" });

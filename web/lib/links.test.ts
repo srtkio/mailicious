@@ -43,10 +43,10 @@ describe("formFlags", () => {
     expect(codes(formFlags({ title: "KYC verification", text: "KYC verification\nName" }, "microsoft"))).toEqual(["FORM_MISMATCH"]);
   });
   it("doesn't let a tiny company name settle the mismatch check either way", () => {
-    expect(formFlags({ title: "KYC", text: "KYC\nName" }, "EY")).toEqual([]);
+    expect(codes(formFlags({ title: "KYC", text: "KYC\nName" }, "EY"))).toEqual(["FORM_READ"]);
   });
   it("leaves a harmless matching form alone", () => {
-    expect(formFlags({ title: "Microsoft Internship", text: "Microsoft Internship\nName\nBranch" }, "microsoft")).toEqual([]);
+    expect(codes(formFlags({ title: "Microsoft Internship", text: "Microsoft Internship\nName\nBranch" }, "microsoft"))).toEqual(["FORM_READ"]);
   });
 });
 

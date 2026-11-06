@@ -57,7 +57,7 @@ function authResults(value: string): Record<string, string> {
   return found;
 }
 
-export type HeaderReport = { from: string; flags: Flag[]; checks: SecurityCheck[] };
+export type HeaderReport = { from: string; authenticated: boolean; flags: Flag[]; checks: SecurityCheck[] }; // authenticated: DMARC proved the From domain
 
 export function analyzeHeaders(block: string): HeaderReport {
   const from = address(headerValues(block, "from")[0]);
@@ -91,7 +91,7 @@ export function analyzeHeaders(block: string): HeaderReport {
   } else if (from) {
     checks.push({ label: "Reply address", status: "pass", detail: "Replies go back to the sender's own domain." });
   }
-  return { from, flags, checks };
+  return { from, authenticated: dmarc === "pass" && !!from, flags, checks };
 }
 
 type Node = { nodeName: string; namespaceURI?: string; value?: string; attrs?: { name: string; value: string }[]; childNodes?: Node[] };

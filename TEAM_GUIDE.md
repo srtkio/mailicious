@@ -90,6 +90,8 @@ curl -s localhost:3000/api/check -H 'content-type: application/json' \
 
 The mail is written by the scammer, so we assume it may try to instruct the AI. The AI can't lower a rule's flag, its offer judgments come from a fixed list with our own wording, and a website only counts if a real search result is on it and it isn't a job board or shared host.
 
+**Who sent it changes the answer.** A sender counts as proven only when DMARC passes for the real From address. A proven college office, or a sender the placement cell marked genuine, skips the soft warnings. A proven personal college account pushing an outside offer gets asked to confirm. Proof never clears an OTP, ID or malware flag, because a hacked account passes every check, so that mail stays High and says the account may be hacked.
+
 The rule is that **the final level is the highest risk found**. If AI or search fails, the student still gets the rules and link results, marked `mode: "limited"`. Failures are logged on the server.
 
 Flags you'll see:

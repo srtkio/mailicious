@@ -68,7 +68,7 @@
     host.style.setProperty("--c", style.color);
     host.style.setProperty("--t", style.tint);
     if (result.level === "low") {
-      root.append(el("span", "pill", "✓ PlacementShield: no red flags"));
+      root.append(el("span", "pill", `✓ PlacementShield: ${result.reasons.join(" ")}`));
       return host;
     }
     const box = el("div", "card");

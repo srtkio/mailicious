@@ -1,6 +1,6 @@
 // Campus data in Supabase, over its REST API. Server only. Stores no mail text. If Supabase is missing or down,
 // checks carry on without it.
-import { FREE_MAIL, COLLEGE_DOMAIN, registrable } from "./engine";
+import { COLLEGE_DOMAIN, FREE_MAIL, isOn, registrable } from "./engine";
 
 const TIMEOUT_MS = 2500;
 const CACHE_MS = 60_000;
@@ -28,20 +28,24 @@ export function reportTarget(sender: string): string | null {
   const address = sender.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) || address.length > 320) return null;
   const host = address.split("@").pop()!;
-  return FREE_MAIL.includes(host) || host === COLLEGE_DOMAIN || host.endsWith(`.${COLLEGE_DOMAIN}`) ? address : registrable(host);
+  return isSharedDomain(host) ? address : registrable(host);
 }
 
-let blocked: { at: number; targets: string[] } = { at: 0, targets: [] };
+export const isSharedDomain = (host: string) => isOn(host, [...FREE_MAIL, COLLEGE_DOMAIN]);
 
-export async function blockedTargets(): Promise<string[]> {
-  if (!config() || Date.now() - blocked.at < CACHE_MS) return blocked.targets;
+type Verdicts = { fake: string[]; genuine: string[] };
+let verdicts: Verdicts & { at: number } = { at: 0, fake: [], genuine: [] };
+
+export async function campusVerdicts(): Promise<Verdicts> {
+  if (!config() || Date.now() - verdicts.at < CACHE_MS) return verdicts;
   try {
-    const rows: { target: string }[] = await (await rest("verdicts?select=target&verdict=eq.fake")).json();
-    blocked = { at: Date.now(), targets: rows.map((r) => r.target) };
+    const rows: { target: string; verdict: string }[] = await (await rest("verdicts?select=target,verdict")).json();
+    const of = (kind: string) => rows.filter((r) => r.verdict === kind).map((r) => r.target);
+    verdicts = { at: Date.now(), fake: of("fake"), genuine: of("genuine") };
   } catch (e) {
-    console.error("blockedTargets failed:", e);
+    console.error("campusVerdicts failed:", e);
   }
-  return blocked.targets;
+  return verdicts;
 }
 
 export async function logEvent(level: string, attack: string | null): Promise<void> {
@@ -59,7 +63,7 @@ export async function setVerdict(target: string, verdict: "fake" | "genuine"): P
     headers: { prefer: "resolution=merge-duplicates" },
     body: JSON.stringify({ target, verdict, updated_at: new Date().toISOString() }),
   });
-  blocked = { at: 0, targets: [] }; // this instance sees the change at once; others within a minute
+  verdicts = { at: 0, fake: [], genuine: [] }; // this instance sees the change at once; others within a minute
 }
 
 export type Dashboard = {

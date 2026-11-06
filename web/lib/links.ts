@@ -75,6 +75,7 @@ export function formFlags(form: { title: string; text: string }, company?: strin
   if (/\b(transaction id|utr|payment|registration fee)\b/i.test(form.text)) add("high", "FORM_ASKS_DATA", `The form "${name}" asks for a payment.`);
   if (company && company.length >= 3 && !form.text.toLowerCase().includes(company.toLowerCase())) // a shorter name would match almost any form
     add("medium", "FORM_MISMATCH", `The mail says ${company[0].toUpperCase() + company.slice(1)}, but the form "${name}" never mentions it.`);
+  if (!flags.length) add("low", "FORM_READ", `We read the form "${name}": it doesn't ask for passwords, ID, bank details or payment.`);
   return flags;
 }
 

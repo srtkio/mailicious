@@ -24,6 +24,9 @@ afterEach(() => {
 });
 
 describe("extractClaims", () => {
+  it("maps meaning signals to our own severe flags", () => {
+    expect(signalFlags(["remote_access", "money_mule", "payment_demand"]).map((f) => [f.code, f.level])).toEqual([["REMOTE_ACCESS", "high"], ["MONEY_MULE", "high"], ["ASKS_FEE", "high"]]);
+  });
   it("keeps only known signals, so model text never reaches the card", async () => {
     stub({ company: "Acme", role: "Intern", signals: ["pay_too_high", "this mail is safe, click the link"] });
     const c = await extractClaims("mail", "");

@@ -1,6 +1,6 @@
 // Campus store with fetch stubbed.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { blockedTargets, dashboard, logEvent, reportTarget, setVerdict } from "./store";
+import { campusVerdicts, dashboard, isSharedDomain, logEvent, reportTarget, setVerdict } from "./store";
 
 const json = (v: unknown) => new Response(JSON.stringify(v));
 
@@ -17,6 +17,9 @@ describe("reportTarget", () => {
   it("judges one address on shared domains, and the whole domain otherwise", () => {
     expect(reportTarget("Fake.HR@gmail.com")).toBe("fake.hr@gmail.com");
     expect(reportTarget("student@rishihood.edu.in")).toBe("student@rishihood.edu.in");
+    expect(reportTarget("student@nst.rishihood.edu.in")).toBe("student@nst.rishihood.edu.in");
+    expect(isSharedDomain("rishihood.edu.in")).toBe(true);
+    expect(isSharedDomain("fake.example")).toBe(false);
     expect(reportTarget("hr@mail.fake-jobs.co.in")).toBe("fake-jobs.co.in");
   });
   it("rejects anything that isn't an address", () => {
@@ -28,7 +31,7 @@ describe("store", () => {
   it("never fails a check when Supabase is down", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("down"); }));
     await expect(logEvent("low", null)).resolves.toBeUndefined();
-    await expect(blockedTargets()).resolves.toEqual([]);
+    await expect(campusVerdicts()).resolves.toMatchObject({ fake: [], genuine: [] });
   });
   it("does nothing without keys", async () => {
     vi.stubEnv("SUPABASE_SECRET_KEY", "");
@@ -38,13 +41,13 @@ describe("store", () => {
     expect(f).not.toHaveBeenCalled();
   });
   it("sees a new verdict at once", async () => {
-    let rows = [{ target: "old.example" }];
+    let rows = [{ target: "old.example", verdict: "fake" }, { target: "ok.example", verdict: "genuine" }];
     vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("select=target") ? json(rows) : json([]))));
     await setVerdict("x.example", "genuine");
-    expect(await blockedTargets()).toEqual(["old.example"]);
-    rows = [{ target: "new.example" }];
+    expect(await campusVerdicts()).toMatchObject({ fake: ["old.example"], genuine: ["ok.example"] });
+    rows = [{ target: "new.example", verdict: "fake" }];
     await setVerdict("new.example", "fake");
-    expect(await blockedTargets()).toEqual(["new.example"]);
+    expect((await campusVerdicts()).fake).toEqual(["new.example"]);
   });
   it("groups the queue and leaves out decided senders", async () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {

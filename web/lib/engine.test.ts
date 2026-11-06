@@ -170,10 +170,13 @@ describe("deepRules", () => {
     expect(checkRules("Microsoft Teams hiring now, interview next week.", "hr@acme.example").flags.map((f) => f.code)).toContain("WRONG_DOMAIN");
   });
   it("leaves money in ordinary mail to the AI, and honest no-fee promises alone", () => {
-    const level = (t: string) => checkRules(t).level;
+    const level = (t: string) => checkRules(t, "", [], [], [], { aiChecked: true }).level;
     expect(level("Your electricity bill of Rs 842 is due. Pay by 15 Nov to avoid a late fee.")).toBe("low");
     expect(level("Your ticket is confirmed. Fare Rs 755 paid, including convenience fee.")).toBe("low");
     expect(level("Bro, I forgot my wallet, can you send me Rs 500?")).toBe("low");
+    expect(checkRules("Your electricity bill of Rs 842 is due. Pay by 15 Nov to avoid a late fee.").level).toBe("medium"); // no AI, so the rule still watches it
+    expect(level("We never charge a fee but pay Rs 500 for your job kit.")).toBe("high");
+    expect(level("Meridian does not charge a fee, except the recruitment deposit of Rs 500.")).toBe("high");
     expect(level("We are pleased to offer you the job. Meridian does not charge any fee at any stage of recruitment.")).toBe("low");
     expect(level("Our recruiters don't charge candidates any fee, but pay the deposit of Rs 500 for your job kit.")).toBe("high");
   });

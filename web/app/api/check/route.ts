@@ -82,7 +82,7 @@ export async function POST(request: Request) {
   ];
   // Only a DMARC-proved From address earns trust; a sender typed into the form proves nothing.
   const proven = !!headers?.authenticated && headers.from === sender.trim().toLowerCase();
-  const result = checkRules(text, sender, allLinks, campus.fake.filter((b) => !b.includes("@")), extra, { authenticated: proven, genuine: !!target && campus.genuine.includes(target) });
+  const result = checkRules(text, sender, allLinks, campus.fake.filter((b) => !b.includes("@")), extra, { authenticated: proven, genuine: !!target && campus.genuine.includes(target), aiChecked: !!claims });
   await logEvent(result.level, result.attack);
 
   return Response.json({

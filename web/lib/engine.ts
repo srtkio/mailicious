@@ -90,8 +90,8 @@ const INCOME_AFTER = /^\s*(\/-)?\s*(per month|\/\s*month|monthly|a month|lpa|sti
 const SETTLED_FEE = /\b(fees?|charges)\b(?:(?!\b(?:pay|transfer|deposit)\b|₹|\brs\b|\binr\b)[^.!?\n]){0,40}?\b(is|are|has been|have been|will be)\s+(waived|included in (your|the) (semester|tuition|college) fees?)/gi;
 // Only with an instruction to report it, so "if anyone asks for a fee, pay the deposit" stays a demand.
 const FEE_WARNING = /\bif\s+(any\s+\w+|anyone|someone|a\s+\w+)\s+(asks?|demands?|requests?)\s+(you\s+)?(for\s+)?(a\s+|any\s+)?(fees?|money|payment|deposit)\b[^.!?\n]{0,50}?\b(report|tell|inform|ignore|contact)\b/gi;
-const NO_FEE_PROMISE = /\b(does not|do not|doesn'?t|don'?t|will not|won'?t|never)\s+(charge|ask for|collect|take|require|demand)\b[^.!?\n]{0,40}?\b(fees?|money|payments?|charges?)\b/gi;
-// Bills, refunds and tickets all mention money, so the word-matching fee rule only applies to job mail. The AI judges the rest.
+const NO_FEE_PROMISE = /\b(does not|do not|doesn'?t|don'?t|will not|won'?t|never)\s+(charge|ask for|collect|require|demand)\b(?:(?!\b(?:pay|transfer|deposit|remit|but|however|except|only|unless)\b|₹|\brs\b|\binr\b)[^.!?\n,;]){0,30}?\b(fees?|money|payments?|charges?)\b/gi;
+// Bills, refunds and tickets all mention money, so once the AI has judged a non-job mail, the word-matching fee rule stays out.
 const JOB_CONTEXT = /\b(internships?|interns?|placements?|hiring|recruit\w*|jobs?|shortlisted|interviews?|stipend|salary|ctc|joining|join|offer letter|selected|slot|seat|candidates?|onboarding|programs?|training)\b/i;
 const CREDENTIALS = /\b(verify|confirm|validate|update)\s+(your\s+)?(account|mailbox|email|login|credentials)\b|\bmailbox\b[^.!?\n]{0,30}\bfull\b/i;
 // Naming a tool isn't claiming to be the company that makes it.
@@ -197,7 +197,7 @@ export function deepRules({ sender = "", links = [], linkPairs = [], attachments
 // What sender proof can settle: these depend on who's writing, so a proven office sender clears them.
 const SOFT_FOR_TRUSTED = ["OUTSIDE_FORM", "LINK_MISMATCH", "WRONG_DOMAIN", "COMPANY_DOMAIN_MISMATCH", "TOO_GOOD", "REALITY_CHECK", "URGENCY", "HACKED_ACCOUNT"];
 // authenticated: DMARC proved the From address. genuine: the placement cell vouched for this sender.
-export type SenderContext = { authenticated?: boolean; genuine?: boolean };
+export type SenderContext = { authenticated?: boolean; genuine?: boolean; aiChecked?: boolean }; // aiChecked: the AI read this mail
 
 export function checkRules(text: string, sender = "", links: string[] = [], blockedDomains: string[] = [], extra: Flag[] = [], context: SenderContext = {}): CheckResult {
   const flags: Flag[] = [];
@@ -211,8 +211,9 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
     add("ASKS_SECRET", "high", "It asks you to share an OTP or password. No real recruiter ever needs this.");
   // Matches money *you* pay (fee/deposit, "pay ₹500"), not salary text like "pay of ₹20,000".
   const feeText = text.replace(SETTLED_FEE, " ").replace(FEE_WARNING, " ").replace(NO_FEE_PROMISE, " ");
-  if (JOB_CONTEXT.test(text) && (asks(feeText, /\b(fee|fees|deposit|charges(?!\s+(no|zero|nothing)\b))\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i) || asksForMoney(feeText)))
-    add("ASKS_FEE", "high", "It asks you to pay money. Real companies don't charge you to get hired.");
+  const moneyAsked = asks(feeText, /\b(fee|fees|deposit|charges(?!\s+(no|zero|nothing)\b))\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i) || asksForMoney(feeText);
+  if (moneyAsked && JOB_CONTEXT.test(text)) add("ASKS_FEE", "high", "It asks you to pay money. Real companies don't charge you to get hired.");
+  else if (moneyAsked && !context.aiChecked) add("PAYMENT_NOTICE", "medium", "It mentions a payment, and the AI couldn't review this mail. Be sure you know the sender.");
   if (asks(text, ID_OR_BANK, shareVerb))
     add("ASKS_DOCUMENTS", "high", "It asks for ID or bank details over mail before any formal process.");
   if (asks(text, /\b(whatsapp|telegram)\b/i, /\b(contact|message|join|reply|add|text|ping|dm)\b/i))

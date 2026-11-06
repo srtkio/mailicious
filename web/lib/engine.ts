@@ -61,9 +61,28 @@ export function registrable(host: string): string {
 }
 
 // Pasted senders often look like "Library <library@college.edu>".
-// The real address is the last <...> outside quotes: a display name can hold a fake one.
+// Removes quoted strings and comments, which can nest, in one left-to-right pass.
+export function stripComments(value: string): { clean: string; malformed: boolean } {
+  let out = "";
+  let depth = 0;
+  let quoted = false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    if (c === "\\" && (quoted || depth)) i++;
+    else if (quoted) quoted = c !== '"';
+    else if (c === "(") depth++;
+    else if (c === ")") depth = Math.max(0, depth - 1);
+    else if (!depth && c === '"') quoted = true;
+    else if (!depth) out += c;
+  }
+  return { clean: out, malformed: depth > 0 || quoted };
+}
+
+// The real address is the last <...> outside quotes and comments: a display name can hold a fake one.
+// Fails closed: an unclosed quote or comment, or a quoted local part, gives no address, so nothing is trusted.
 export const addressOf = (value = "") => {
-  const clean = value.replace(/"(?:[^"\\]|\\.)*"/g, " ").replace(/\([^()]*\)/g, " ");
+  const { clean, malformed } = stripComments(value);
+  if (malformed) return "";
   const angled = [...clean.matchAll(/<([^<>\s]+@[^<>\s]+)>/g)].at(-1)?.[1];
   return (angled ?? clean.match(/[^\s<>"',;]+@[^\s<>"',;]+/)?.[0] ?? "").toLowerCase();
 };

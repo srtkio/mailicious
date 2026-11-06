@@ -2,7 +2,7 @@
 // the receiving mail server's own verdict on whether the sender is genuine.
 import { simpleParser } from "mailparser";
 import { parse } from "parse5";
-import { addressOf, registrable } from "./engine";
+import { addressOf, registrable, stripComments } from "./engine";
 import type { Flag, LinkPair, SecurityCheck } from "./types";
 
 const headerValues = (block: string, name: string): string[] =>
@@ -19,22 +19,6 @@ const domainOf = (a: string) => a.split("@").pop() ?? "";
 const VERDICT_RANK = ["pass", "none", "neutral", "policy", "temperror", "softfail", "fail", "permerror"];
 const rank = (verdict: string) => VERDICT_RANK.indexOf(verdict);
 
-// Removes quoted strings and comments, which can nest, in one left-to-right pass.
-function stripComments(value: string): { clean: string; malformed: boolean } {
-  let out = "";
-  let depth = 0;
-  let quoted = false;
-  for (let i = 0; i < value.length; i++) {
-    const c = value[i];
-    if (c === "\\" && (quoted || depth)) i++;
-    else if (quoted) quoted = c !== '"';
-    else if (c === "(") depth++;
-    else if (c === ")") depth = Math.max(0, depth - 1);
-    else if (!depth && c === '"') quoted = true;
-    else if (!depth) out += c;
-  }
-  return { clean: out, malformed: depth > 0 || quoted };
-}
 
 // Reads methods from the start of each ";" segment, so an address containing "dmarc=pass" can't pose as a
 // result. Every segment counts, because Outlook has no server name first. The worst verdict for a method wins,
@@ -92,11 +76,11 @@ export function analyzeHeaders(block: string): HeaderReport {
   } else if (from) {
     checks.push({ label: "Reply address", status: "pass", detail: "Replies go back to the sender's own domain." });
   }
-  // Proven only with one clear From address, on the domain DMARC actually checked.
+  // Proven only with one clear From address, on the domain every DMARC pass actually checked.
   const fromHeaders = headerValues(block, "from");
-  const addresses = fromHeaders.join(",").replace(/"(?:[^"\\]|\\.)*"/g, " ").match(/@/g)?.length ?? 0;
-  const checked = stripComments(auth).clean.match(/\bdmarc\s*=\s*pass\b[^;]*\bheader\.from=([^\s;]+)/i)?.[1]?.toLowerCase();
-  const aligned = !checked || registrable(checked) === registrable(domainOf(from));
+  const addresses = stripComments(fromHeaders.join(",")).clean.match(/@/g)?.length ?? 0;
+  const passes = stripComments(auth).clean.split(";").map((s) => s.match(/^\s*dmarc\s*=\s*pass\b[^]*?\bheader\.from=([^\s;]+)/i)).filter((m) => m !== null);
+  const aligned = passes.length > 0 && passes.every((m) => registrable(m[1].toLowerCase()) === registrable(domainOf(from)));
   return { from, authenticated: dmarc === "pass" && EMAIL.test(from) && fromHeaders.length === 1 && addresses === 1 && aligned, flags, checks };
 }
 

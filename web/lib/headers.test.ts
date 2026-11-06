@@ -12,7 +12,8 @@ const codes = (h: string) => analyzeHeaders(h).flags.map((f) => f.code);
 describe("analyzeHeaders", () => {
   it("passes a fully authenticated mail", () => {
     const r = analyzeHeaders(head("spf=pass; dkim=pass; dmarc=pass"));
-    expect(r.authenticated).toBe(true);
+    expect(r.authenticated).toBe(false); // no header.from, so nothing proves which domain DMARC checked
+    expect(analyzeHeaders(head("spf=pass; dkim=pass; dmarc=pass header.from=acme.example")).authenticated).toBe(true);
     expect(analyzeHeaders(head("spf=pass; dkim=pass; dmarc=none")).authenticated).toBe(false);
     const forged = (from: string, auth = "dmarc=pass") => analyzeHeaders(`Authentication-Results: mx.google.com; ${auth}\nFrom: ${from}`);
     expect(forged('"<placement@rishihood.edu.in>" <evil@x.example>').from).toBe("evil@x.example");
@@ -21,6 +22,10 @@ describe("analyzeHeaders", () => {
     expect(forged("placement@rishihood.edu.in", "dmarc=pass header.from=evil.example").authenticated).toBe(false);
     expect(forged("placement@nst.rishihood.edu.in", "dmarc=pass header.from=rishihood.edu.in").authenticated).toBe(true);
     expect(analyzeHeaders("Authentication-Results: mx; dmarc=pass\nFrom: a@x.example\nFrom: b@y.example").authenticated).toBe(false);
+    expect(forged("placement@rishihood.edu.in", "dmarc=pass").authenticated).toBe(false); // no header.from to compare
+    expect(forged("placement@rishihood.edu.in", "dmarc=pass header.from=rishihood.edu.in; dmarc=pass header.from=evil.example").authenticated).toBe(false);
+    expect(forged('"unclosed <placement@rishihood.edu.in>', "dmarc=pass header.from=rishihood.edu.in").authenticated).toBe(false);
+    expect(forged('"quoted local"@rishihood.edu.in', "dmarc=pass header.from=rishihood.edu.in").authenticated).toBe(false);
     expect(r.flags).toEqual([]);
     expect(r.from).toBe("hr@acme.example");
     expect(r.checks[0]).toMatchObject({ label: "Sender authentication", status: "pass" });

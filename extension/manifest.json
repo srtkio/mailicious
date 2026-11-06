@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PlacementShield",
   "version": "1.0.0",
-  "description": "Checks placement mails inside Gmail and warns you before you reply, pay or click.",
+  "description": "Checks each mail you open in Gmail and warns you before you reply, pay or click.",
   "permissions": ["storage"],
   "host_permissions": ["https://placementshield.vercel.app/*"],
   "background": { "service_worker": "background.js" },

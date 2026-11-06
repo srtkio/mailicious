@@ -64,7 +64,7 @@ Keys go in `web/.env.local`: run `cp .env.example .env.local` in `web/`, then pa
 
 ## Extension
 
-It works inside Gmail with no Google sign-in. A content script reads the open mail and fetches Gmail's own Show original page for the real headers, so it needs no OAuth and no MCP server.
+It checks every mail the student opens while its switch is on, and works inside Gmail with no Google sign-in. Only job mail triggers the web search, to protect the search quota. A content script reads the open mail and fetches Gmail's own Show original page for the real headers, so it needs no OAuth and no MCP server.
 
 After changing anything in `extension/`, run `npm run pack:extension` in `web/` to rebuild the download, then deploy.
 

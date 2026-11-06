@@ -106,6 +106,8 @@ export function findLinks(text: string, links: string[] = []): string[] {
   return [...links, ...(text.match(/\b(?:https?:\/\/|www\.)[^\s<>"')]+|\b(?:bit\.ly|forms\.gle|tinyurl\.com|cutt\.ly|rb\.gy)\/[^\s<>"')]+/gi) ?? [])];
 }
 
+export const isJobMail = (text: string) => JOBBY.test(text);
+
 export const claimedCompany = (text: string) => {
   const named = text.replace(TOOL_NAMES, " ");
   return Object.keys(COMPANIES).find((c) => new RegExp(`\\b${c}\\b`, "i").test(named));

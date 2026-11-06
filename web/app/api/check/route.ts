@@ -1,5 +1,5 @@
 import { checkCompany, extractClaims, signalFlags } from "@/lib/ai";
-import { checkRules, claimedCompany, deepRules, findLinks } from "@/lib/engine";
+import { checkRules, claimedCompany, deepRules, findLinks, isJobMail } from "@/lib/engine";
 import { analyzeHeaders, parseRawMail } from "@/lib/headers";
 import { threatIntel } from "@/lib/intel";
 import { checkLinks } from "@/lib/links";
@@ -60,8 +60,10 @@ export async function POST(request: Request) {
   const claims = underLimit(`ai:${clientIp(request)}`, AI_PER_MINUTE) ? await Promise.race([extractClaims(text, sender), deadline]) : null;
   const seed = claimedCompany(text);
   const lookup = claims && { ...claims, company: claims.company ?? seed ?? null };
+  // Every opened mail reaches here, so the web search runs only for job mail, or newsletters would drain its quota.
+  const jobMail = isJobMail(text);
   const [company, linkFlags, intel, campus] = await Promise.all([
-    lookup ? Promise.race([checkCompany(lookup, sender, seed), deadline]) : null,
+    lookup && jobMail ? Promise.race([checkCompany(lookup, sender, seed), deadline]) : null,
     checkLinks(text, allLinks, seed ?? claims?.company ?? undefined),
     threatIntel(sender, allLinks).catch(() => ({ flags: [], checks: [] })),
     campusVerdicts(),
@@ -88,6 +90,6 @@ export async function POST(request: Request) {
     evidence: { ...result.evidence, company: company?.summary ?? null },
     sources: company?.sources ?? [],
     checks: securityReport(result.flags, [...(headers?.checks ?? []), ...intel.checks], { sender: !!sender, links: allLinks.length > 0, headers: !!headers, identity: proven ? result.evidence.sender : null }),
-    mode: lookup && (company || (!lookup.company && !lookup.rejected)) ? "full" : "limited", // no company anywhere means nothing to look up, not a failure
+    mode: lookup && (company || ((!lookup.company || !jobMail) && !lookup.rejected)) ? "full" : "limited", // nothing to look up isn't a failure
   });
 }

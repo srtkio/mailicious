@@ -1,10 +1,10 @@
-// Runs inside Gmail. Stays silent unless a placement mail needs a warning.
-// Only placement-looking mails ever leave the browser, and only their text, sender, links and headers.
+// Runs inside Gmail. Checks every mail the student opens while the switch is on, and shows the result on the mail.
+// Only the open mail's text, sender, links and headers leave the browser.
 (() => {
   if (window.__placementShield) return;
   window.__placementShield = true;
 
-  // Deliberately narrow: a shopping "offer" must never leave the browser.
+  // Only for the inbox dot, which is judged on the row alone. Opened mails are always checked.
   const PLACEMENT = /\b(offer letter|job offer|internship|intern|placement|hiring|recruit\w*|job opening|job opportunity|selected for|shortlisted|interview|stipend|salary|ctc|career\w*)\b/i;
   const RISKY = /\b(otp|registration fee|processing fee|security deposit|aadhaa?r|pan card|bank details|whatsapp|telegram)\b/i;
   const FREE_MAIL = /@(gmail|yahoo|outlook|hotmail|rediffmail)\.[a-z.]+$/i;
@@ -30,7 +30,8 @@
     summary { cursor: pointer; color: #2a2f8f; }
     .row { display: grid; grid-template-columns: 16px 1fr; gap: 6px; margin-top: 4px; }
     a { color: #2a2f8f; }
-    .pill { display: inline-block; color: var(--c); font-size: 12px; margin: 4px 0 8px; }
+    .pill { display: inline-block; color: var(--c); font-size: 12px; margin: 4px 0; }
+    details { font-size: 13px; margin-bottom: 8px; }
     .overlay { position: fixed; inset: 0; z-index: 2147483647; background: rgba(22, 35, 63, .55); display: grid; place-items: center; padding: 16px; }
     .box { background: #fff; max-width: 420px; padding: 20px; border-radius: 6px; }
     .box h2 { margin: 0 0 8px; font-size: 18px; color: #b3122a; }
@@ -48,6 +49,7 @@
   const results = new Map(); // message id -> result, or "pending"
   const attempts = new Map(); // message id -> failed tries
   const MAX_TRIES = 3;
+  const CHECK_TIMEOUT_MS = 28000;
   let latest = null;
 
   const el = (tag, cls, text) => {
@@ -70,7 +72,7 @@
     host.style.setProperty("--c", style.color);
     host.style.setProperty("--t", style.tint);
     if (result.level === "low") {
-      root.append(el("span", "pill", `✓ PlacementShield: ${result.reasons.join(" ")}`));
+      root.append(el("span", "pill", `✓ PlacementShield: ${result.reasons.join(" ")}`), securityReport(result));
       return host;
     }
     const box = el("div", "card");
@@ -79,6 +81,14 @@
     if (result.attack) top.append(el("span", "attack", result.attack));
     const list = el("ul");
     result.reasons.forEach((r) => list.append(el("li", "", r)));
+    box.append(top, list, el("p", "next", result.nextStep));
+    if (result.sender) box.append(reportButton(result));
+    box.append(securityReport(result));
+    root.append(box);
+    return host;
+  }
+
+  function securityReport(result) {
     const more = el("details");
     more.append(el("summary", "", "Security report"));
     (result.checks ?? []).forEach((c) => {
@@ -94,11 +104,7 @@
       a.rel = "noopener noreferrer";
       more.append(el("br"), a);
     });
-    box.append(top, list, el("p", "next", result.nextStep));
-    if (result.sender) box.append(reportButton(result));
-    box.append(more);
-    root.append(box);
-    return host;
+    return more;
   }
 
   function reportButton(result) {
@@ -154,7 +160,7 @@
     const ik = [...document.scripts].map((s) => s.textContent.match(/GLOBALS=\[(?:[^,]*,){9}"([0-9a-f]{6,})"/)?.[1]).find(Boolean);
     const ref = legacyId ? `th=${legacyId}` : `permmsgid=${id}`;
     try {
-      const res = await fetch(`${location.origin}${account}/?${ik ? `ik=${ik}&` : ""}view=om&${ref}`, { credentials: "same-origin" });
+      const res = await fetch(`${location.origin}${account}/?${ik ? `ik=${ik}&` : ""}view=om&${ref}`, { credentials: "same-origin", signal: AbortSignal.timeout(8000) });
       if (!res.ok) return null;
       // Read as text: Gmail enforces Trusted Types, which can block DOMParser on a string.
       const raw = decodeEntities((await res.text()).match(/<pre[^>]*id="raw_message_text"[^>]*>([\s\S]*?)<\/pre>/)?.[1] ?? "");
@@ -171,19 +177,29 @@
     if (!id || !body || results.has(id)) return;
     const text = body.innerText.trim();
     const subject = document.querySelector("h2.hP, .ha h2")?.textContent ?? "";
-    if (!text || !PLACEMENT.test(`${subject} ${text}`)) return results.set(id, null);
+    if (!text) return results.set(id, null);
 
     results.set(id, "pending");
+    showStatus(message, id, "PlacementShield is checking this mail…");
     const sender = message.querySelector(".gD[email], td.gF span[email]")?.getAttribute("email") ?? "";
     const anchors = [...body.querySelectorAll("a[href]")].filter((a) => /^https?:/i.test(a.href)).slice(0, 40);
     const linkPairs = anchors.map((a) => ({ text: a.textContent.trim().slice(0, 300), href: a.href.slice(0, 2000) }));
     const attachments = [...message.querySelectorAll(".aV3")].map((n) => n.textContent.trim().slice(0, 200)).filter(Boolean).slice(0, 20);
     const headers = await fetchHeaders(id, message.dataset.legacyMessageId);
 
-    const result = await new Promise((done) =>
-      chrome.runtime.sendMessage({ type: "check", payload: { text: `${subject}\n${text}`.slice(0, 20000), sender, linkPairs, attachments, ...(headers ? { headers } : {}) } }, (r) => done(chrome.runtime.lastError ? null : r)),
-    );
-    if (result?.off) return results.set(id, null); // the student switched it off: stay silent
+    // The time limit means a stuck check becomes a retry, so "checking" can never hang forever.
+    const result = await new Promise((done) => {
+      setTimeout(() => done(null), CHECK_TIMEOUT_MS);
+      try {
+        chrome.runtime.sendMessage({ type: "check", payload: { text: `${subject}\n${text}`.slice(0, 20000), sender, linkPairs, attachments, ...(headers ? { headers } : {}) } }, (r) => done(chrome.runtime.lastError ? null : r));
+      } catch {
+        done(null); // the extension was reloaded under this page
+      }
+    });
+    if (result?.off) {
+      clearStatus(message);
+      return results.set(id, null); // the student switched it off: stay silent
+    }
     if (!result) return retry(message, id);
     attempts.delete(id);
     results.set(id, result);
@@ -201,13 +217,23 @@
       return;
     }
     results.set(id, null);
-    const { host, root } = shadowHost(id);
+    showStatus(message, id, "PlacementShield couldn't check this mail. Refresh Gmail to try again, and be careful until then.");
+  }
+
+  function clearStatus(message) {
+    message.querySelector('[data-placementshield="status"]')?.remove();
+  }
+
+  function showStatus(message, id, text) {
+    clearStatus(message);
+    const { host, root } = shadowHost("status");
     host.style.setProperty("--c", "#8a5200");
-    root.append(el("span", "pill", "PlacementShield couldn't check this mail. Reopen it to try again, and be careful until then."));
+    root.append(el("span", "pill", text));
     (bodyOf(message)?.parentElement ?? message).prepend(host);
   }
 
   function show(message, id, result) {
+    clearStatus(message);
     if (message.querySelector(`[data-placementshield="${window.CSS.escape(id)}"]`)) return;
     (bodyOf(message)?.parentElement ?? message).prepend(card(result, id));
   }

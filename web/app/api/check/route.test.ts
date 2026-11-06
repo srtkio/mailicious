@@ -36,6 +36,13 @@ describe("mode", () => {
     expect(body.mode).toBe("limited");
     vi.mocked(extractClaims).mockClear();
   });
+  it("skips the web search for mail that isn't about jobs", async () => {
+    vi.mocked(checkCompany).mockClear();
+    vi.mocked(extractClaims).mockResolvedValueOnce({ company: "Acme", role: null, signals: [] });
+    expect((await (await call("7.7.7.7", "Your Acme order has shipped.")).json()).mode).toBe("full");
+    expect(checkCompany).not.toHaveBeenCalled();
+    vi.mocked(extractClaims).mockClear();
+  });
   it("is limited when the model's company name was refused", async () => {
     vi.mocked(extractClaims).mockResolvedValueOnce({ company: null, role: null, signals: [], rejected: true });
     expect((await (await call("6.6.6.6")).json()).mode).toBe("limited");

@@ -48,8 +48,8 @@ Your Microsoft internship offer is ready. Reply with your details to accept it.`
 ];
 
 const EXTENSION_POINTS = [
-  ["Checks mail as you open it", "No pasting. Open a placement mail in Gmail and the check runs by itself."],
-  ["Quiet until it matters", "Normal mails get a small tick. You only see a warning when something is wrong."],
+  ["Checks mail as you open it", "No pasting. Open any mail in Gmail and the check runs by itself."],
+  ["Quiet until it matters", "Normal mails get a small tick and a report you can open. You only see a warning when something is wrong."],
   ["Stops the risky click", "Links in a fake mail ask you to confirm before they open."],
   ["Catches what you're about to send", "Warns you if you type an OTP, Aadhaar, PAN or card number into a reply."],
   ["Sees real sender checks", "Reads the same SPF, DKIM and DMARC results Gmail recorded for the mail."],
@@ -213,7 +213,7 @@ export default function Home() {
             ))}
           </ol>
           <p className="mt-4 max-w-2xl text-muted">
-            A switch in the extension turns it off at any time. Only placement-looking mails you open are checked, and other mail never leaves your browser.
+            A switch in the extension turns it off at any time. While it&apos;s on, every mail you open is checked and its text goes to Google&apos;s AI. Mail you don&apos;t open never leaves your browser, and we don&apos;t save anything you check.
           </p>
         </section>
       </main>

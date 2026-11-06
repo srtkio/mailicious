@@ -2,7 +2,7 @@
 // the receiving mail server's own verdict on whether the sender is genuine.
 import { simpleParser } from "mailparser";
 import { parse } from "parse5";
-import { registrable } from "./engine";
+import { addressOf, registrable } from "./engine";
 import type { Flag, LinkPair, SecurityCheck } from "./types";
 
 const headerValues = (block: string, name: string): string[] =>
@@ -12,7 +12,7 @@ const headerValues = (block: string, name: string): string[] =>
     .filter((l) => l.toLowerCase().startsWith(`${name}:`))
     .map((l) => l.slice(name.length + 1).trim());
 
-const address = (v = "") => (v.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] ?? v.match(/[^\s<>"',;]+@[^\s<>"',;]+/)?.[0] ?? "").toLowerCase();
+const address = (v = "") => (v.includes("@") ? addressOf(v) : "");
 const domainOf = (a: string) => a.split("@").pop() ?? "";
 
 const VERDICT_RANK = ["pass", "none", "neutral", "policy", "temperror", "softfail", "fail", "permerror"];

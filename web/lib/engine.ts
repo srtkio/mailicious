@@ -60,6 +60,9 @@ export function registrable(host: string): string {
   return parts.slice(parts.length > 2 && parts.at(-1)!.length === 2 && SECOND_LEVEL.test(parts.at(-2)!) ? -3 : -2).join(".");
 }
 
+// Pasted senders often look like "Library <library@college.edu>".
+export const addressOf = (value = "") => (value.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] ?? value.match(/[^\s<>"',;]+@[^\s<>"',;]+/)?.[0] ?? value.trim()).toLowerCase();
+
 export function hostOf(url: string): string | null {
   try {
     return new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname.toLowerCase().replace(/^www\./, "");
@@ -74,7 +77,7 @@ export const isOn = (host: string, domains: string[]) => domains.some((d) => hos
 const unswap = (s: string) => s.replace(/0/g, "o").replace(/1/g, "l").replace(/3/g, "e").replace(/5/g, "s").replace(/-/g, "");
 
 export const SECRET = /\b(otp|one[- ]time password|verification code|password|passcode|(upi|atm|card) pin)\b/i;
-export const ID_OR_BANK = /\b(aadhaa?r|pan\b|pan card|bank account|account number|ifsc|upi|cvv|card number|debit card)\b/i;
+export const ID_OR_BANK = /\b(aadhaa?r|pan\b|pan card|bank account|account number|ifsc|upi id|cvv|card number|debit card)\b/i;
 
 // A code sent to you that you're asked to pass on, whatever it's called. Requires both halves, and no word near
 // "code" can clear it. Entering a code on a site is normal, so only handing it to a person counts.
@@ -90,9 +93,10 @@ const INCOME_AFTER = /^\s*(\/-)?\s*(per month|\/\s*month|monthly|a month|lpa|sti
 const SETTLED_FEE = /\b(fees?|charges)\b(?:(?!\b(?:pay|transfer|deposit)\b|₹|\brs\b|\binr\b)[^.!?\n]){0,40}?\b(is|are|has been|have been|will be)\s+(waived|included in (your|the) (semester|tuition|college) fees?)/gi;
 // Only with an instruction to report it, so "if anyone asks for a fee, pay the deposit" stays a demand.
 const FEE_WARNING = /\bif\s+(any\s+\w+|anyone|someone|a\s+\w+)\s+(asks?|demands?|requests?)\s+(you\s+)?(for\s+)?(a\s+|any\s+)?(fees?|money|payment|deposit)\b[^.!?\n]{0,50}?\b(report|tell|inform|ignore|contact)\b/gi;
-const NO_FEE_PROMISE = /\b(does not|do not|doesn'?t|don'?t|will not|won'?t|never)\s+(charge|ask for|collect|require|demand)\b(?:(?!\b(?:pay|transfer|deposit|remit|but|however|except|only|unless)\b|₹|\brs\b|\binr\b)[^.!?\n,;]){0,30}?\b(fees?|money|payments?|charges?)\b/gi;
+// Only filler words may sit between the promise and the fee, so nothing else in the sentence can be cleared.
+const NO_FEE_PROMISE = /\b(?:(?:does not|do not|doesn'?t|don'?t|will not|won'?t|never)\s+(?:charge|ask for|collect|require|demand)|no\s+(?:genuine|real|legitimate)\b[^.!?\n,;]{0,40}?\bcharges?)\s+(?:(?:any|a|an|the|candidates?|students?|applicants?|you|for|registration|joining|processing|recruitment|placement|application|training)\s+){0,5}(?:fees?|money|payments?|charges?)\b/gi;
 // Bills, refunds and tickets all mention money, so once the AI has judged a non-job mail, the word-matching fee rule stays out.
-const JOB_CONTEXT = /\b(internships?|interns?|placements?|hiring|recruit\w*|jobs?|shortlisted|interviews?|stipend|salary|ctc|joining|join|offer letter|selected|slot|seat|candidates?|onboarding|programs?|training)\b/i;
+const JOB_CONTEXT = /\b(internships?|interns?|placements?|hiring|recruit\w*|jobs?|shortlisted|interviews?|stipend|salary|ctc|joining|join|offer letter|selected for|slot|candidates?|onboarding|programs?|training)\b/i;
 const CREDENTIALS = /\b(verify|confirm|validate|update)\s+(your\s+)?(account|mailbox|email|login|credentials)\b|\bmailbox\b[^.!?\n]{0,30}\bfull\b/i;
 // Naming a tool isn't claiming to be the company that makes it.
 const TOOL_NAMES = /\b(on|via|using|through|over|join|in|fill|this|the|a)\s+(google\s+(meet|forms?|drive|docs?|sheets?|classroom|calendar)|microsoft\s+(teams|office|word|excel|forms?|outlook))\b(?!\s+(intern\w*|team|hiring|offer|job|role|program\w*|recruit\w*))/gi;
@@ -102,7 +106,7 @@ function asksForMoney(text: string): boolean {
   const owed = sentences(text.replace(/\brs\.\s*/gi, "Rs ")).some((s) =>
     [...s.matchAll(AMOUNT)].some((m) => !INCOME_BEFORE.test(s.slice(0, m.index)) && !INCOME_AFTER.test(s.slice(m.index + m[0].length))),
   );
-  return owed && asks(text, /\b(transfer|remit|cleared?|pay|paid|payment)\b/i);
+  return owed && asks(text, /\b(transfer|remit|cleared?|pay|payment|(to|must|should) be paid)\b/i); // "paid" alone is a receipt
 }
 
 export function findLinks(text: string, links: string[] = []): string[] {
@@ -181,7 +185,8 @@ export function deepRules({ sender = "", links = [], linkPairs = [], attachments
     if (h.split(".").some((p) => p.startsWith("xn--"))) add("HOMOGRAPH_LINK", "high", `A link uses disguised characters in its address (${h}).`);
     else if (name) add("LOOKALIKE_LINK", "high", `The link ${h} imitates ${name[0].toUpperCase() + name.slice(1)}'s website.`);
   }
-  const senderHost = sender.includes("@") ? sender.trim().toLowerCase().split("@").pop()! : "";
+  const senderAddress = addressOf(sender);
+  const senderHost = senderAddress.includes("@") ? senderAddress.split("@").pop()! : "";
   const imitated = senderHost && imitatedCompany(senderHost);
   if (imitated) add("LOOKALIKE_DOMAIN", "high", `${senderHost} imitates ${imitated[0].toUpperCase() + imitated.slice(1)}'s domain.`);
   if (senderHost.split(".").some((p) => p.startsWith("xn--"))) add("LOOKALIKE_DOMAIN", "high", `The sender's domain uses disguised characters (${senderHost}).`);
@@ -207,15 +212,17 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   // --- what the mail asks you to do ---
   const shareVerb = /\b(shar(e|es|ed|ing)|send(s|ing)?|repl(y|ies|ying)|provid(e|ing)|tell|forward(ing)?|enter(ing)?|submit(ting)?|give|giving|mention|fill(ing)?)\b/i;
   // "pin" alone would hit "PIN code" in addresses, so only UPI/ATM/card PINs count.
+  // Delivery OTPs and the like: outside job mail, if the AI saw no scam, these stay a caution, not an alarm.
+  const askLevel: Level = context.aiChecked && !JOB_CONTEXT.test(text) ? "medium" : "high";
   if (asks(text, SECRET, shareVerb) || (CODE_SENT.test(text) && asks(text, THE_CODE, PASS_BACK)))
-    add("ASKS_SECRET", "high", "It asks you to share an OTP or password. No real recruiter ever needs this.");
+    add("ASKS_SECRET", askLevel, "It asks you to share an OTP or password. No real recruiter ever needs this.");
   // Matches money *you* pay (fee/deposit, "pay ₹500"), not salary text like "pay of ₹20,000".
   const feeText = text.replace(SETTLED_FEE, " ").replace(FEE_WARNING, " ").replace(NO_FEE_PROMISE, " ");
   const moneyAsked = asks(feeText, /\b(fee|fees|deposit|charges(?!\s+(no|zero|nothing)\b))\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i) || asksForMoney(feeText);
   if (moneyAsked && JOB_CONTEXT.test(text)) add("ASKS_FEE", "high", "It asks you to pay money. Real companies don't charge you to get hired.");
   else if (moneyAsked && !context.aiChecked) add("PAYMENT_NOTICE", "medium", "It mentions a payment, and the AI couldn't review this mail. Be sure you know the sender.");
   if (asks(text, ID_OR_BANK, shareVerb))
-    add("ASKS_DOCUMENTS", "high", "It asks for ID or bank details over mail before any formal process.");
+    add("ASKS_DOCUMENTS", askLevel, "It asks for ID or bank details over mail before any formal process.");
   if (asks(text, /\b(whatsapp|telegram)\b/i, /\b(contact|message|join|reply|add|text|ping|dm)\b/i))
     add("MOVE_TO_CHAT", "medium", "It moves the conversation to WhatsApp/Telegram, away from official channels.");
   if (/\bno (interview|test|assessment)\b|\bwithout (any )?(interview|test)\b|\byou (have been|are|were) (directly )?selected\b/i.test(text))
@@ -225,7 +232,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
     add("URGENCY", "low", "It pushes you to act fast, a common pressure trick.");
 
   // --- who sent it ---
-  const senderAddr = sender.trim().toLowerCase();
+  const senderAddr = addressOf(sender);
   const senderHost = senderAddr.includes("@") ? senderAddr.split("@").pop()! : "";
   const company = claimedCompany(text);
   const onCollege = !!senderHost && isOn(senderHost, [COLLEGE_DOMAIN]);

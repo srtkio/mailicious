@@ -6,6 +6,7 @@ vi.mock("@/lib/ai", () => ({
   extractClaims: vi.fn(async () => ({ company: null, role: null, signals: [] })),
   checkCompany: vi.fn(async () => null),
   signalFlags: () => [],
+  MAX_MAIL: 8000,
 }));
 import { checkCompany, extractClaims } from "@/lib/ai";
 

@@ -1,5 +1,5 @@
-import { checkCompany, extractClaims, signalFlags } from "@/lib/ai";
-import { checkRules, claimedCompany, deepRules, findLinks, isJobMail } from "@/lib/engine";
+import { checkCompany, extractClaims, MAX_MAIL, signalFlags } from "@/lib/ai";
+import { addressOf, checkRules, claimedCompany, deepRules, findLinks, isJobMail } from "@/lib/engine";
 import { analyzeHeaders, parseRawMail } from "@/lib/headers";
 import { threatIntel } from "@/lib/intel";
 import { checkLinks } from "@/lib/links";
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   const headerBlock = parsed?.headers ?? input.headers;
   const headers = headerBlock ? analyzeHeaders(headerBlock.slice(0, MAX_HEADERS)) : null;
-  const sender = input.sender || headers?.from || "";
+  const sender = addressOf(input.sender) || headers?.from || "";
   // Duplicates count once, so one link repeated can't use up the limit.
   const uniquePairs = [...new Map([...(input.linkPairs ?? []), ...(parsed?.linkPairs ?? [])].map((l) => [`${l.href}\n${l.text}`, l])).values()];
   const linkPairs = uniquePairs.slice(0, MAX_LINKS * 3);
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
   ];
   // Only a DMARC-proved From address earns trust; a sender typed into the form proves nothing.
   const proven = !!headers?.authenticated && headers.from === sender.trim().toLowerCase();
-  const result = checkRules(text, sender, allLinks, campus.fake.filter((b) => !b.includes("@")), extra, { authenticated: proven, genuine: !!target && campus.genuine.includes(target), aiChecked: !!claims });
+  const result = checkRules(text, sender, allLinks, campus.fake.filter((b) => !b.includes("@")), extra, { authenticated: proven, genuine: !!target && campus.genuine.includes(target), aiChecked: !!claims && text.length <= MAX_MAIL });
   await logEvent(result.level, result.attack);
 
   return Response.json({

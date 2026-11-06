@@ -7,7 +7,7 @@ import type { Flag } from "./types";
 const MODELS = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.8-flash"]; // tried in order: busy models return 503 during demand spikes
 const MODEL_TIMEOUT_MS = 6000;
 const SEARCH_TIMEOUT_MS = 10000;
-const MAX_MAIL = 8000;
+export const MAX_MAIL = 8000;
 // Includes full-width and ideographic dots, which some apps still turn into links.
 const LINK_LIKE = /[a-z][a-z0-9+.-]*:\/\/|www\.|[\p{L}\p{N}-]+[.。．｡][\p{L}\p{N}-]+/iu;
 const CACHE_MS = 60 * 60 * 1000;

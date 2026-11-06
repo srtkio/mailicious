@@ -1,6 +1,6 @@
 // Fixture checks for the rules engine. All messages and addresses are fictional.
 import { describe, expect, it } from "vitest";
-import { checkRules, deepRules } from "./engine";
+import { addressOf, checkRules, deepRules } from "./engine";
 
 const cases: { name: string; text: string; sender?: string; blocked?: string[]; level: string; code?: string }[] = [
   { name: "asks for OTP", text: "Congratulations on your selection. Please share the OTP sent to your phone to confirm.", level: "high", code: "ASKS_SECRET" },
@@ -179,6 +179,29 @@ describe("deepRules", () => {
     expect(level("Meridian does not charge a fee, except the recruitment deposit of Rs 500.")).toBe("high");
     expect(level("We are pleased to offer you the job. Meridian does not charge any fee at any stage of recruitment.")).toBe("low");
     expect(level("Our recruiters don't charge candidates any fee, but pay the deposit of Rs 500 for your job kit.")).toBe("high");
+  });
+  it("reads senders with a display name", () => {
+    expect(addressOf("Library <Library@rishihood.edu.in>")).toBe("library@rishihood.edu.in");
+    expect(deepRules({ sender: "Library <library@rishihood.edu.in>" })).toEqual([]);
+    expect(checkRules("Book due Friday.", "Library <library@rishihood.edu.in>", [], [], [], { authenticated: true }).reasons[0]).toContain("Verified college office");
+  });
+  it("doesn't mistake receipts, seats or a friend's note for demands", () => {
+    const level = (t: string) => checkRules(t, "", [], [], [], { aiChecked: true }).level;
+    expect(level("Total paid: Rs 748. Cash on Delivery not selected.")).toBe("low");
+    expect(level("Coach B3, Seat 41. Fare paid: Rs 2,415 including convenience fee.")).toBe("low");
+    expect(level("I owe you Rs 200, will send on UPI tonight.")).toBe("low");
+    expect(checkRules("You got the job. No genuine company charges candidates any fee for offers.").level).toBe("low");
+  });
+  it("keeps a caution on non-job code requests the AI cleared, and an alarm without the AI", () => {
+    const delivery = "Share this OTP only with the delivery partner at your door.";
+    expect(checkRules(delivery, "", [], [], [], { aiChecked: true }).level).toBe("medium");
+    expect(checkRules(delivery).level).toBe("high");
+    expect(checkRules("Internship: share this OTP.", "", [], [], [], { aiChecked: true }).level).toBe("high");
+  });
+  it("can't clear a demand through a no-fee promise", () => {
+    const level = (t: string) => checkRules(t, "", [], [], [], { aiChecked: true }).level;
+    expect(level("For this job we don't charge a fee besides the Rs1500 kit, kindly pay.")).toBe("high");
+    expect(level("We never charge any fee other than the job deposit of Rs 900, pay today.")).toBe("high");
   });
   it("doesn't read a tool as a claim to be its maker", () => {
     expect(checkRules("Your interview is on Google Meet.", "hr@acme.example").level).toBe("low");

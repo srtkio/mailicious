@@ -2,7 +2,7 @@
 
 Start here. This is the one page for what we're building, how to run it and what's left. If something changes, update this file in the same commit.
 
-**Live site: https://placementshield.vercel.app.** Submission is due 6 Nov. `TEAM_PLAN.md` has the full original plan and the pitch answers.
+**Live site: https://mailicious.vercel.app.** Submission is due 6 Nov. `TEAM_PLAN.md` has the full original plan and the pitch answers.
 
 ## What we're building
 
@@ -28,6 +28,7 @@ There are three pieces, all using one engine:
 | Website with security report and extension download | Done, live |
 | Gmail extension (`extension/`) | Works in real Gmail: card, security report and real SPF, DKIM and DMARC results confirmed. Link warning and reply warning only tested on a fake page |
 | Placement-cell dashboard, reporting and campus blocklist (`web/lib/store.ts`) | Built at `/dashboard`, needs the Supabase keys, `ADMIN_PASSWORD` and `supabase/schema.sql` run once |
+| Technology page (`web/app/technology/page.tsx`) | Built, not linked from the home page yet |
 | Pitch deck | Not started |
 
 ## Run it
@@ -35,7 +36,7 @@ There are three pieces, all using one engine:
 You need Node and git.
 
 ```
-git clone https://github.com/srtkio/placementshield.git
+git clone https://github.com/srtkio/mailicious.git
 cd mailicious/web
 npm install
 npm run dev

@@ -270,7 +270,9 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   if (trusted) {
     for (let i = flags.length - 1; i >= 0; i--) if (SOFT_FOR_TRUSTED.includes(flags[i].code)) flags.splice(i, 1);
     // College posters are often just images, so a proven office keeps its tick, but the card never vouches for what it couldn't read.
-    for (const f of flags) if (f.code === "BODY_NOT_READ") f.level = "low";
+    flags.forEach((f, i) => {
+      if (f.code === "BODY_NOT_READ") flags[i] = { ...f, level: "low" };
+    });
     const fee = flags.findIndex((f) => f.code === "ASKS_FEE");
     if (fee >= 0) flags[fee] = { code: "PAYMENT_NOTICE", level: "medium", text: "A verified college office mentions a payment." };
   }

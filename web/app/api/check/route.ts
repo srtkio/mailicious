@@ -1,5 +1,5 @@
 import { checkCompany, extractClaims, MAX_MAIL, signalFlags } from "@/lib/ai";
-import { addressOf, checkRules, claimedCompany, deepRules, findLinks, isJobMail } from "@/lib/engine";
+import { addressOf, looseAddress, checkRules, claimedCompany, deepRules, findLinks, isJobMail } from "@/lib/engine";
 import { analyzeHeaders, parseRawMail } from "@/lib/headers";
 import { threatIntel } from "@/lib/intel";
 import { checkLinks } from "@/lib/links";
@@ -43,7 +43,8 @@ export async function POST(request: Request) {
 
   const headerBlock = parsed?.headers ?? input.headers;
   const headers = headerBlock ? analyzeHeaders(headerBlock.slice(0, MAX_HEADERS)) : null;
-  const sender = addressOf(input.sender) || headers?.from || "";
+  // Trust needs the strict address; warnings use the loose one, so a broken From can't dodge the look-alike and blocklist checks.
+  const sender = addressOf(input.sender) || looseAddress(input.sender) || headers?.from || "";
   // Duplicates count once, so one link repeated can't use up the limit.
   const uniquePairs = [...new Map([...(input.linkPairs ?? []), ...(parsed?.linkPairs ?? [])].map((l) => [`${l.href}\n${l.text}`, l])).values()];
   const linkPairs = uniquePairs.slice(0, MAX_LINKS * 3);
@@ -52,6 +53,8 @@ export async function POST(request: Request) {
   const everyLink = [...new Set([...uniquePairs.map((l) => l.href), ...findLinks(parsed?.text ?? text, links)])];
   const allLinks = everyLink.slice(0, MAX_LINKS);
   const unread: Flag[] = [];
+  if (typeof input.sender === "string" && input.sender.includes("@") && !addressOf(input.sender))
+    unread.push({ code: "MALFORMED_SENDER", level: "medium", text: "The sender's address is written in an unusual way, so we can't verify who sent this." });
   if (input.unreadBody === true) unread.push({ code: "BODY_NOT_READ", level: "medium", text: "This mail is mostly images, which we can't read, so we only checked the sender, subject and links." });
   if (parsed?.partial) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: "This mail is built in a way that stopped us reading all of it." });
   if (everyLink.length > MAX_LINKS || uniquePairs.length > linkPairs.length) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: `This mail has ${everyLink.length} links, too many to check them all.` });

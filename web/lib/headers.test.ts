@@ -90,6 +90,19 @@ describe("analyzeHeaders", () => {
     expect(codes(`${head("spf=pass; dkim=pass; dmarc=pass").replace("acme.example", "acme.co.in")}\nReply-To: <x@evil.co.in>`)).toEqual(["REPLY_TO_MISMATCH"]);
     expect(codes(head("spf=pass; dkim=pass; dmarc=pass", "\nReply-To: <a@acme.example>, <b@evil.example>"))).toEqual(["REPLY_TO_MISMATCH"]);
   });
+  it("treats a different reply domain on a no-reply address as a note", () => {
+    const noreply = (reply: string, auth = "spf=pass; dkim=pass; dmarc=pass") =>
+      analyzeHeaders(`Authentication-Results: mx; ${auth}\nFrom: School <no-reply@school.in>\nReply-To: ${reply}`);
+    expect(noreply("<help@school.co>").flags[0]).toMatchObject({ code: "REPLY_TO_MISMATCH", level: "low" });
+    expect(noreply("<help@school.co>", "spf=pass; dkim=pass; dmarc=fail").flags.some((f) => f.level === "high")).toBe(true);
+    expect(analyzeHeaders("Authentication-Results: mx; dmarc=pass\nFrom: hr@school.in\nReply-To: <x@evil.example>").flags[0].level).toBe("medium");
+  });
+  it("never passes a reply address it couldn't read, or a sender it couldn't parse", () => {
+    const r = analyzeHeaders('Authentication-Results: mx; dmarc=pass\nFrom: hr@acme.example\nReply-To: "unclosed <x@evil.example>');
+    expect(r.flags.map((f) => f.code)).toContain("REPLY_TO_MISMATCH");
+    expect(r.checks.find((c) => c.label === "Reply address")?.status).toBe("fail");
+    expect(analyzeHeaders('Authentication-Results: mx; dmarc=pass\nFrom: "bad <hr@acme.example>').flags.map((f) => f.code)).toContain("MALFORMED_SENDER");
+  });
   it("adds nothing when there are no results", () => {
     expect(analyzeHeaders("From: a@b.example").checks[0].status).toBe("skip");
   });

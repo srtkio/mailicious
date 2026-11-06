@@ -46,6 +46,8 @@ const NEXT_STEP: Record<string, string> = {
   MONEY_MULE: "Don't do this. Moving money for strangers is illegal even if you keep nothing. Tell the placement cell.",
   OUTSIDE_FORM: "Check who sent this before filling the form, and never enter passwords, ID or bank details in it.",
   PAYMENT_NOTICE: "Pay only through the official college portal, never by UPI or a link in a mail.",
+  REPLY_TO_MISMATCH: "Don't reply to this mail. Contact them through their official website instead.",
+  MALFORMED_SENDER: "Don't trust this sender. Check the address by hand before replying.",
   HACKED_ACCOUNT: "Call or meet the sender in person to confirm they sent this, before you open the link.",
 };
 const DEFAULT_NEXT = "Don't act on this mail yet. Verify it with the placement cell or the company's official careers page.";
@@ -77,6 +79,9 @@ export function stripComments(value: string): { clean: string; malformed: boolea
   }
   return { clean: out, malformed: depth > 0 || quoted };
 }
+
+// For checks that only ever add warnings (look-alikes, blocklist): the last address-looking text, however broken the header.
+export const looseAddress = (value = "") => ([...value.matchAll(/[^\s<>"',;()]+@[^\s<>"',;()]+/g)].at(-1)?.[0] ?? "").toLowerCase();
 
 // The real address is the last <...> outside quotes and comments: a display name can hold a fake one.
 // Fails closed: an unclosed quote or comment, or a quoted local part, gives no address, so nothing is trusted.
@@ -364,7 +369,7 @@ const ATTACKS: [string, string][] = [
   ["HACKED_ACCOUNT", "Possible account takeover"],
   ["REPLY_TO_MISMATCH", "Reply hijacking"],
 ];
-const attackOf = (flags: Flag[]) => ATTACKS.find(([code]) => flags.some((f) => f.code === code))?.[1] ?? null;
+const attackOf = (flags: Flag[]) => ATTACKS.find(([code]) => flags.some((f) => f.code === code && f.level !== "low"))?.[1] ?? null;
 
 function intentOf(flags: Flag[], text: string, hasForm: boolean, hasLink: boolean): Intent {
   const has = (c: string) => flags.some((f) => f.code === c);

@@ -1,6 +1,6 @@
 // Fixture checks for the rules engine. All messages and addresses are fictional.
 import { describe, expect, it } from "vitest";
-import { addressOf, checkRules, deepRules } from "./engine";
+import { addressOf, checkRules, deepRules, looseAddress } from "./engine";
 
 const cases: { name: string; text: string; sender?: string; blocked?: string[]; level: string; code?: string }[] = [
   { name: "asks for OTP", text: "Congratulations on your selection. Please share the OTP sent to your phone to confirm.", level: "high", code: "ASKS_SECRET" },
@@ -179,6 +179,13 @@ describe("deepRules", () => {
     expect(level("Meridian does not charge a fee, except the recruitment deposit of Rs 500.")).toBe("high");
     expect(level("We are pleased to offer you the job. Meridian does not charge any fee at any stage of recruitment.")).toBe("low");
     expect(level("Our recruiters don't charge candidates any fee, but pay the deposit of Rs 500 for your job kit.")).toBe("high");
+  });
+  it("finds the last address in a broken sender for warnings only", () => {
+    expect(looseAddress('"<placement@rishihood.edu.in> <evil@x.example>')).toBe("evil@x.example");
+    expect(addressOf('"<placement@rishihood.edu.in> <evil@x.example>')).toBe("");
+  });
+  it("names no attack from a low note", () => {
+    expect(checkRules("Hello.", "", [], [], [{ code: "REPLY_TO_MISMATCH", level: "low", text: "x" }]).attack).toBeNull();
   });
   it("reads senders with a display name", () => {
     expect(addressOf("Library <Library@rishihood.edu.in>")).toBe("library@rishihood.edu.in");

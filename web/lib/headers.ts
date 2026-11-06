@@ -46,7 +46,10 @@ export type HeaderReport = { from: string; authenticated: boolean; flags: Flag[]
 
 export function analyzeHeaders(block: string): HeaderReport {
   const from = address(headerValues(block, "from")[0]);
-  const replyTo = (headerValues(block, "reply-to")[0] ?? "").split(",").map(address).filter(Boolean);
+  const replyRaw = headerValues(block, "reply-to")[0] ?? "";
+  const replyParsed = stripComments(replyRaw);
+  const replyTo = replyParsed.malformed ? [] : replyParsed.clean.split(",").map(address).filter(Boolean);
+  const replyUnreadable = replyRaw.trim() !== "" && (replyParsed.malformed || replyTo.length === 0); // never a quiet pass
   // Only the top one counts: it's the receiver's. Anything below can be forged by the sender.
   const auth = headerValues(block, "authentication-results")[0] ?? "";
   const results = authResults(auth);
@@ -70,9 +73,19 @@ export function analyzeHeaders(block: string): HeaderReport {
   }
 
   const elsewhere = from ? replyTo.find((a) => registrable(domainOf(a)) !== registrable(domainOf(from))) : undefined;
-  if (elsewhere) {
-    flags.push({ code: "REPLY_TO_MISMATCH", level: "medium", text: `It's from ${domainOf(from)}, but replies would go to ${domainOf(elsewhere)}.` });
-    checks.push({ label: "Reply address", status: "fail", detail: `Replies go to ${elsewhere}, not the sender.` });
+  // Nobody replies to a no-reply address, so a different reply domain there is a note, not an alarm. DMARC must pass.
+  const noReply = /^(no-?reply|do-?not-?reply|donotreply|notifications?|alerts?|mailer-daemon|bounces?)([._+-]|$)/.test(from.split("@")[0]);
+  const quiet = noReply && dmarc === "pass";
+  if (replyUnreadable) {
+    flags.push({ code: "REPLY_TO_MISMATCH", level: "medium", text: "The reply address couldn't be read, so replies might go somewhere else." });
+    checks.push({ label: "Reply address", status: "fail", detail: "The reply address couldn't be read." });
+  } else if (elsewhere) {
+    flags.push({
+      code: "REPLY_TO_MISMATCH",
+      level: quiet ? "low" : "medium",
+      text: quiet ? `Replies go to ${domainOf(elsewhere)}, but this is a no-reply address, so it matters little.` : `It's from ${domainOf(from)}, but replies would go to ${domainOf(elsewhere)}.`,
+    });
+    checks.push({ label: "Reply address", status: quiet ? "warn" : "fail", detail: `Replies go to ${elsewhere}, not the sender.` });
   } else if (from) {
     checks.push({ label: "Reply address", status: "pass", detail: "Replies go back to the sender's own domain." });
   }
@@ -80,6 +93,8 @@ export function analyzeHeaders(block: string): HeaderReport {
   const fromHeaders = headerValues(block, "from");
   const addresses = stripComments(fromHeaders.join(",")).clean.match(/@/g)?.length ?? 0;
   const passes = stripComments(auth).clean.split(";").map((s) => s.match(/^\s*dmarc\s*=\s*pass\b[^]*?\bheader\.from=([^\s;]+)/i)).filter((m) => m !== null);
+  if (!from && fromHeaders.some((v) => v.includes("@")))
+    flags.push({ code: "MALFORMED_SENDER", level: "medium", text: "The sender's address is written in an unusual way, so we can't verify who sent this." });
   const aligned = passes.length > 0 && passes.every((m) => registrable(m[1].toLowerCase()) === registrable(domainOf(from)));
   return { from, authenticated: dmarc === "pass" && EMAIL.test(from) && fromHeaders.length === 1 && addresses === 1 && aligned, flags, checks };
 }

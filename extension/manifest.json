@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "MAILicious",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Checks each mail you open in Gmail and warns you before you reply, pay or click.",
   "permissions": ["storage"],
-  "host_permissions": ["https://mailicious.vercel.app/*"],
+  "host_permissions": ["https://mailicious.vercel.app/*", "https://placementshield.vercel.app/*"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [{ "matches": ["https://mail.google.com/*"], "js": ["content.js"], "run_at": "document_idle" }],
   "action": { "default_popup": "popup.html", "default_icon": { "32": "icons/32.png" } },

@@ -26,6 +26,7 @@
     .attack { color: #57534e; }
     ul { margin: 6px 0; padding-left: 18px; }
     .next { font-weight: 700; margin: 6px 0 0; }
+    .hint { color: #57534e; font-size: 12px; margin: 8px 0 0; }
     details { margin-top: 8px; }
     summary { cursor: pointer; color: #c2410c; }
     .row { display: grid; grid-template-columns: 16px 1fr; gap: 6px; margin-top: 4px; }
@@ -43,8 +44,7 @@
     button:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid #c2410c; outline-offset: 2px; }
     .toast { position: fixed; right: 20px; bottom: 20px; z-index: 2147483647; max-width: 340px; background: #c81e1e; color: #fff; padding: 12px 14px; border-radius: 6px; }
   `;
-  const MARKS = { pass: "✓", warn: "!", fail: "✕", skip: "–" };
-  // Selectors as gmail.js and InboxSDK use them; the second of each pair is InboxSDK's fallback.
+    // Selectors as gmail.js and InboxSDK use them; the second of each pair is InboxSDK's fallback.
   const bodyOf = (message) => message.querySelector(".a3s") ?? message.querySelector(".ii.gt");
 
   const results = new Map(); // message id -> result, or "pending"
@@ -53,6 +53,7 @@
   const CHECK_TIMEOUT_MS = 28000;
   const FAILED_TEXT = "MAILicious couldn't check this mail. Refresh Gmail to try again, and be careful until then.";
   let latest = null;
+  let focused = false; // the toolbar badge is showing a mail
 
   const el = (tag, cls, text) => {
     const node = document.createElement(tag);
@@ -73,9 +74,10 @@
     const style = STYLE[result.level];
     host.style.setProperty("--c", style.color);
     host.style.setProperty("--t", style.tint);
+    const hint = "Full report: click the MAILicious icon in your toolbar.";
     if (result.level === "low") {
-      const prefix = result.mode === "limited" ? "MAILicious did a basic check, because the AI was busy:" : "✓ MAILicious:";
-      root.append(el("span", "pill", `${prefix} ${result.reasons.join(" ")}`), securityReport(result));
+      const prefix = result.mode === "limited" ? "MAILicious did a basic check:" : "✓ MAILicious:";
+      root.append(el("span", "pill", `${prefix} ${result.reasons[0]} ${hint}`));
       return host;
     }
     const box = el("div", "card");
@@ -83,33 +85,12 @@
     top.append(el("span", "label", style.label));
     if (result.attack) top.append(el("span", "attack", result.attack));
     const list = el("ul");
-    result.reasons.forEach((r) => list.append(el("li", "", r)));
+    result.reasons.slice(0, 2).forEach((r) => list.append(el("li", "", r)));
     box.append(top, list, el("p", "next", result.nextStep));
     if (result.sender) box.append(reportButton(result));
-    box.append(securityReport(result));
+    box.append(el("p", "hint", hint));
     root.append(box);
     return host;
-  }
-
-  function securityReport(result) {
-    const more = el("details");
-    const count = (status) => (result.checks ?? []).filter((c) => c.status === status).length;
-    const summary = [`${count("pass")} passed`, count("warn") && `${count("warn")} to check`, count("fail") && `${count("fail")} failed`, count("skip") && `${count("skip")} not checked`].filter(Boolean).join(", ");
-    more.append(el("summary", "", `Security report: ${summary}`));
-    (result.checks ?? []).forEach((c) => {
-      const row = el("div", "row");
-      row.append(el("span", "", MARKS[c.status]), el("span", "", `${c.label}: ${c.detail}`));
-      more.append(row);
-    });
-    if (result.evidence?.company) more.append(el("p", "", result.evidence.company));
-    (result.sources ?? []).filter((s) => /^https:/.test(s.url)).forEach((s) => {
-      const a = el("a", "", s.title);
-      a.href = s.url;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      more.append(el("br"), a);
-    });
-    return more;
   }
 
   function reportButton(result) {
@@ -243,8 +224,12 @@
     (bodyOf(message)?.parentElement ?? message).prepend(host);
   }
 
+  const toolbarReport = ({ level, attack, reasons, nextStep, checks, mode, sender, evidence, sources }) => ({ level, attack, reasons, nextStep, checks, mode, sender, company: evidence?.company ?? null, sources });
+
   function show(message, id, result) {
     clearStatus(message);
+    focused = true;
+    chrome.runtime.sendMessage({ type: "focus", result: toolbarReport(result) }, () => void chrome.runtime.lastError);
     if (message.querySelector(`[data-mailicious="${window.CSS.escape(id)}"]`)) return;
     (bodyOf(message)?.parentElement ?? message).prepend(card(result, id));
   }
@@ -270,6 +255,10 @@
 
   function scan() {
     markInbox();
+    if (focused && !document.querySelector("[data-message-id]")) {
+      focused = false; // back in the inbox, so the badge shouldn't describe the last mail
+      chrome.runtime.sendMessage({ type: "clear" }, () => void chrome.runtime.lastError);
+    }
     document.querySelectorAll("[data-message-id]").forEach((message) => {
       if (!bodyOf(message)?.offsetParent) return; // collapsed in the thread
       const id = message.dataset.messageId.replace(/^#/, "");

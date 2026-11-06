@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { ScamDrill } from "./drill";
 import { CampusFlow, InstallFlow, PipelineFlow } from "./flows";
+import { Logo, Nav, Reveal } from "./nav";
+import { CampusRadar } from "./radar";
+import { Guide, HeroScene } from "./scene";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import type { CheckResult, Level, SecurityCheck } from "@/lib/types";
 
@@ -88,60 +92,6 @@ const CHECKS = [
   ["clock", "How new the domain is", "A sender domain registered last week isn't a recruiter, however good the mail looks."],
 ] as const;
 
-function Mark({ className = "h-8 w-8" }: { className?: string }) {
-  return (
-    <svg aria-hidden viewBox="0 0 32 32" className={className}>
-      <path d="M16 2l12 4.5v8.2c0 7.1-4.9 11.6-12 15.3C8.9 26.3 4 21.8 4 14.7V6.5L16 2z" fill="#ff6a00" />
-      <path d="M10.5 15.5l4 4 7-8" fill="none" stroke="#0a0a0a" strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function Wordmark() {
-  return (
-    <span>
-      MAIL<span className="text-flame">icious</span>
-    </span>
-  );
-}
-
-function GmailMock() {
-  return (
-    <figure aria-label="Example of MAILicious inside Gmail" className="relative">
-      <span className="stamp absolute -right-2 -top-5 z-10 border-4 border-high bg-white px-3 py-1 font-display text-2xl font-extrabold text-high shadow-lg">Likely fake</span>
-      <div className="overflow-hidden rounded-lg bg-white text-ink shadow-2xl ring-1 ring-black/10">
-        <div className="flex items-center gap-1.5 border-b border-rule bg-[#f1eeea] px-4 py-2.5" aria-hidden>
-          <span className="h-2.5 w-2.5 rounded-full bg-[#e7776b]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#e8c05a]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#6cc08b]" />
-          <span className="ml-3 text-xs text-muted">mail.google.com</span>
-        </div>
-        <div className="p-5">
-          <p className="font-display text-xl font-bold">Congratulations! You are selected</p>
-          <p className="mt-1 text-sm text-muted">Microsoft HR &lt;hr.microsoft.india@gmail.com&gt;</p>
-          <div className="mt-4 border-l-4 border-high bg-[#fbeaec] p-4 text-sm">
-            <p>
-              <span className="text-base font-extrabold text-high">Likely fake</span> <span className="ml-1 text-muted">Advance-fee scam</span>
-            </p>
-            <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>It asks you to pay money. Real companies don&apos;t charge you to get hired.</li>
-              <li>It claims to be Microsoft but was sent from a personal gmail.com address.</li>
-            </ul>
-            <p className="mt-3 font-bold">Do not pay anything. Check with the placement cell.</p>
-            <p className="mt-2 text-muted">Security report: 5 passed, 3 failed</p>
-          </div>
-          <div className="mt-4 space-y-2" aria-hidden>
-            <div className="h-2.5 w-11/12 rounded bg-[#ece8e2]" />
-            <div className="h-2.5 w-4/5 rounded bg-[#ece8e2]" />
-            <div className="h-2.5 w-3/5 rounded bg-[#ece8e2]" />
-          </div>
-        </div>
-      </div>
-      <figcaption className="mt-3 text-sm text-white/70">An example of what you&apos;d see on a fake offer, inside Gmail.</figcaption>
-    </figure>
-  );
-}
-
 export default function Home() {
   const [text, setText] = useState("");
   const [sender, setSender] = useState("");
@@ -184,24 +134,8 @@ export default function Home() {
 
   return (
     <>
-      <div className="bg-night text-white">
-        <nav aria-label="Main" className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-5 sm:px-8">
-          <span className="flex items-center gap-2 font-display text-xl font-extrabold">
-            <Mark /> <Wordmark />
-          </span>
-          <span className="flex flex-wrap gap-x-6 gap-y-1">
-            <a href="#how" className="text-flame underline-offset-4 hover:underline">
-              How it works
-            </a>
-            <a href="#check" className="text-flame underline-offset-4 hover:underline">
-              Check a mail
-            </a>
-            <a href="#extension" className="text-flame underline-offset-4 hover:underline">
-              Get the extension
-            </a>
-          </span>
-        </nav>
-
+      <Nav />
+      <div id="top" className="bg-night text-white">
         <section className="mx-auto grid w-full max-w-6xl items-center gap-14 px-4 pb-20 pt-10 sm:px-8 sm:pt-14 lg:grid-cols-[1.05fr_1fr]">
           <div>
             <p className="font-bold text-flame">For every student who gets placement mail</p>
@@ -219,11 +153,19 @@ export default function Home() {
             </div>
             <p className="mt-4 text-white/70">Free. No Google sign-in. We don&apos;t save your mail.</p>
           </div>
-          <GmailMock />
+          <HeroScene />
         </section>
       </div>
 
       <main>
+        <section id="guide" className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-8">
+          <Reveal>
+            <h2 className="font-display text-3xl font-bold sm:text-4xl">Your first minute with MAILicious</h2>
+            <p className="mt-2 max-w-2xl text-muted">Four steps from install to your first warning. Click through them.</p>
+            <Guide />
+          </Reveal>
+        </section>
+
         <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-8">
           <h2 className="max-w-3xl font-display text-3xl font-bold leading-tight sm:text-4xl">Most scam mails look exactly like real offers. Warnings that cry wolf get ignored.</h2>
           <p className="mt-4 max-w-3xl text-lg text-muted">
@@ -231,7 +173,7 @@ export default function Home() {
           </p>
         </section>
 
-        <section id="how" className="mx-auto w-full max-w-6xl scroll-mt-4 px-4 pb-16 sm:px-8">
+        <section id="how" className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-8">
           <h2 className="font-display text-3xl font-bold">How it works</h2>
           <p className="mt-2 max-w-2xl text-muted">Every mail you open runs through the same six checks at once, and comes out as one clear answer.</p>
           <div className="mt-8 rounded-lg border border-rule bg-sheet p-3 sm:p-6">
@@ -284,7 +226,27 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="check" className="mx-auto w-full max-w-6xl scroll-mt-4 px-4 pb-16 sm:px-8">
+        <section id="drill" className="bg-night text-white">
+          <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-20 sm:px-8 lg:grid-cols-[1fr_1.15fr]">
+            <div>
+              <p className="font-bold text-flame">Scam Drill</p>
+              <h2 className="mt-2 font-display text-4xl font-extrabold leading-tight">Can you spot the fake?</h2>
+              <p className="mt-4 text-lg leading-8 text-white/80">Five fictional mails, real or fake. Each answer shows the exact tell, so you build the instinct as well as having the tool.</p>
+            </div>
+            <ScamDrill />
+          </div>
+        </section>
+
+        <section id="radar" className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-8">
+          <Reveal>
+            <p className="font-bold text-pad">Live Campus Radar</p>
+            <h2 className="mt-1 font-display text-3xl font-bold">What MAILicious is seeing right now</h2>
+            <p className="mt-2 max-w-2xl text-muted">Real totals from real checks, updated live. Only counts and attack types are kept, never a sender or a word of any mail.</p>
+            <CampusRadar />
+          </Reveal>
+        </section>
+
+        <section id="check" className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-8">
           <h2 className="font-display text-3xl font-bold">Try it on a mail right now</h2>
           <p className="mt-2 text-muted">No install needed. Paste a mail, or use one of the samples.</p>
           <div className="mt-6 grid items-start gap-8 border border-rule bg-sheet p-5 sm:p-8 lg:grid-cols-[1fr_24rem]">
@@ -346,7 +308,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="extension" className="scroll-mt-4 bg-night text-white">
+        <section id="extension" className="bg-night text-white">
           <div className="mx-auto grid w-full max-w-6xl gap-12 px-4 py-20 sm:px-8 lg:grid-cols-[1fr_1.1fr]">
             <div>
               <p className="font-bold text-flame">The Gmail extension</p>
@@ -355,10 +317,10 @@ export default function Home() {
 
               <div className="mt-8 rounded-lg bg-white p-6 text-ink shadow-2xl">
                 <div className="flex items-center gap-4">
-                  <Mark className="h-14 w-14" />
+                  <Logo className="h-14 w-14" />
                   <div>
                     <p className="font-display text-xl font-bold">MAILicious for Gmail</p>
-                    <p className="text-muted">Version 1.1.0, under 20 KB</p>
+                    <p className="text-muted">Version 1.2.0, under 25 KB</p>
                   </div>
                 </div>
                 <a href="/mailicious-extension.zip" download className="mt-5 flex items-center justify-center gap-2 bg-flame px-6 py-4 text-lg font-bold text-black hover:bg-black hover:text-white">
@@ -414,7 +376,7 @@ export default function Home() {
       <footer className="border-t border-rule">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-muted sm:px-8">
           <span className="flex items-center gap-2">
-            <Mark className="h-6 w-6" /> MAILicious, built for Arthakram PS5
+            <Logo className="h-6 w-6" /> MAILicious, built for Arthakram PS5
           </span>
           <span>Nothing you check is saved. Text of checked mail goes to Google&apos;s AI.</span>
         </div>

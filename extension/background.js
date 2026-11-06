@@ -17,8 +17,26 @@ async function report(payload) {
   return res.ok;
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, reply) => {
-  if (message.type === "report") report(message.payload).then(reply, () => reply(false));
+const BADGE = { low: ["✓", "#15803d"], medium: ["!", "#a15c00"], high: ["!!", "#c81e1e"] };
+
+// The popup shows this report. It lives in session storage, so it's gone when the browser closes, and holds no mail text.
+async function focusMail(tabId, result) {
+  const [text, color] = BADGE[result.level];
+  await chrome.storage.session.set({ [`tab:${tabId}`]: result });
+  await chrome.action.setBadgeBackgroundColor({ tabId, color });
+  await chrome.action.setBadgeText({ tabId, text });
+}
+
+async function clearMail(tabId) {
+  await chrome.storage.session.remove(`tab:${tabId}`);
+  await chrome.action.setBadgeText({ tabId, text: "" });
+}
+
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  const tabId = sender.tab?.id;
+  if (message.type === "focus" && tabId !== undefined) focusMail(tabId, message.result).then(reply, () => reply(false));
+  else if (message.type === "clear" && tabId !== undefined) clearMail(tabId).then(reply, () => reply(false));
+  else if (message.type === "report") report(message.payload).then(reply, () => reply(false));
   else if (message.type === "check") check(message.payload).then(reply, () => reply(null));
   else return false;
   return true; // reply comes later

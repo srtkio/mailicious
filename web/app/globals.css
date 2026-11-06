@@ -17,6 +17,11 @@
   --font-sans: var(--font-atkinson);
 }
 
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 4.5rem;
+}
+
 body {
   background: var(--color-paper);
   color: var(--color-ink);
@@ -64,4 +69,67 @@ body {
 .flow-static .react-flow__pane,
 .flow-static .react-flow__node {
   cursor: default !important;
+}
+
+.rise {
+  animation: rise 320ms ease-out both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 500ms ease-out, transform 500ms ease-out;
+}
+
+.reveal-in {
+  opacity: 1;
+  transform: none;
+}
+
+.scanline {
+  background: linear-gradient(to bottom, transparent, rgb(255 106 0 / 0.28), transparent);
+  animation: scan 1.3s ease-in-out infinite alternate;
+}
+
+@keyframes scan {
+  from {
+    top: 0;
+  }
+  to {
+    top: calc(100% - 4rem);
+  }
+}
+
+.grow-bar {
+  animation: grow 800ms ease-out both;
+  transform-origin: left;
+}
+
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .rise,
+  .scanline,
+  .grow-bar {
+    animation: none;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }

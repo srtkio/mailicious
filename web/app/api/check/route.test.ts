@@ -26,6 +26,20 @@ describe("AI time budget", () => {
   });
 });
 
+describe("college senders", () => {
+  it("skips the company lookup for a proven college office", async () => {
+    vi.mocked(checkCompany).mockClear();
+    vi.mocked(extractClaims).mockResolvedValueOnce({ company: "Rishihood University", role: null, signals: [] });
+    const headers = "Authentication-Results: mx; dmarc=pass header.from=rishihood.edu.in\r\nFrom: Council <learnercareercouncil@nst.rishihood.edu.in>";
+    const res = await POST(new Request("http://x/api/check", { method: "POST", headers: { "x-forwarded-for": "9.9.9.9" }, body: JSON.stringify({ text: "Career session feedback for the internship drive.", headers }) }));
+    const body = await res.json();
+    expect(checkCompany).not.toHaveBeenCalled();
+    expect(body.evidence.company).toBeNull();
+    expect(body.mode).toBe("full");
+    vi.mocked(extractClaims).mockClear();
+  });
+});
+
 describe("reply note", () => {
   const post = (text: string) => {
     const headers = "Authentication-Results: mx; dkim=pass; spf=pass; dmarc=pass header.from=school.in\r\nFrom: School <no-reply@school.in>\r\nReply-To: <help@school.co>";

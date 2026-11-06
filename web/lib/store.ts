@@ -66,6 +66,18 @@ export async function setVerdict(target: string, verdict: "fake" | "genuine"): P
   verdicts = { at: 0, fake: [], genuine: [] }; // this instance sees the change at once; others within a minute
 }
 
+const RADAR_CACHE_MS = 30_000;
+let radarCache: { at: number; value: Pick<Dashboard, "checked" | "flagged" | "attacks"> & { blocked: number } } | null = null;
+
+// Public totals, cached so page views can't hammer the database.
+export async function radar() {
+  if (radarCache && Date.now() - radarCache.at < RADAR_CACHE_MS) return radarCache.value;
+  const { checked, flagged, attacks, verdicts: decided } = await dashboard();
+  const value = { checked, flagged, blocked: decided.filter((v) => v.verdict === "fake").length, attacks: attacks.slice(0, 5) };
+  radarCache = { at: Date.now(), value };
+  return value;
+}
+
 export type Dashboard = {
   checked: number;
   flagged: number;

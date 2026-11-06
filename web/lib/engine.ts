@@ -32,6 +32,7 @@ const NEXT_STEP: Record<string, string> = {
   ASKS_FEE: "Do not pay anything. Real companies don't charge to hire you. Check with the placement cell.",
   ASKS_DOCUMENTS: "Don't send ID or bank details over mail. Confirm with the placement cell first.",
   BLOCKED_SENDER: "This sender was already reported as fake on campus. Don't reply or click anything.",
+  SCAM_DNA: "Your campus has already seen this scam from another address. Don't reply or click anything.",
   LOOKALIKE_DOMAIN: "Don't reply or click. Find the company's careers page yourself and apply there.",
   RAW_IP_LINK: "Don't open the link. Verify the offer with the placement cell.",
   FORM_ASKS_DATA: "Don't fill this form. Report it to the placement cell.",
@@ -355,6 +356,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
 }
 
 const ATTACKS: [string, string][] = [
+  ["SCAM_DNA", "Known scam script"],
   ["DANGEROUS_ATTACHMENT", "Malware attachment"],
   ["ASKS_SECRET", "OTP or password theft"],
   ["FORM_ASKS_DATA", "Phishing form"],

@@ -3,6 +3,7 @@ import type { Flag, SecurityCheck } from "./types";
 
 const GROUPS: { label: string; codes: string[]; pass: string; needs: "sender" | "links" | null }[] = [
   { label: "Sender identity", codes: ["AUTH_FAIL", "FREE_MAIL_CLAIM", "WRONG_DOMAIN", "LOOKALIKE_DOMAIN", "COMPANY_DOMAIN_MISMATCH", "BLOCKED_SENDER", "HACKED_ACCOUNT"], pass: "The sender's address fits who they claim to be.", needs: "sender" },
+  { label: "Scam DNA", codes: ["SCAM_DNA"], pass: "Its script doesn't match any scam your campus marked fake.", needs: null },
   { label: "Links", codes: ["HIDDEN_LINK", "HOMOGRAPH_LINK", "LOOKALIKE_LINK", "RAW_IP_LINK", "SHORT_LINK", "SHORT_LINK_TARGET", "LINK_MISMATCH", "LINK_NOT_CHECKED"], pass: "The links go where they should.", needs: "links" },
   { label: "Forms", codes: ["FORM_ASKS_DATA", "FORM_MISMATCH", "OUTSIDE_FORM", "FORM_READ"], pass: "No risky form found.", needs: null },
   { label: "Attachments", codes: ["DANGEROUS_ATTACHMENT"], pass: "No dangerous attachment found.", needs: null },

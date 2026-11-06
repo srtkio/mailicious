@@ -53,4 +53,6 @@ export type CheckResult = {
   checks: SecurityCheck[]; // the security report
   mode: "full" | "limited"; // limited = rules only (no AI/search)
   sender?: string; // the address checked, for reporting
+  dna?: string | null; // Scam DNA: the script's fingerprint, sent back with a report
+  dnaMatch?: number | null; // percent match with a script the campus marked fake
 };

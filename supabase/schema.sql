@@ -11,8 +11,10 @@ create table if not exists reports (
   target text not null, -- a domain, or a full address for free mail
   level text,
   attack text,
+  dna text, -- Scam DNA: a 64-bit fingerprint of the mail's script, never its text
   created_at timestamptz not null default now()
 );
+alter table reports add column if not exists dna text; -- for databases made before Scam DNA
 create table if not exists verdicts (
   target text primary key,
   verdict text not null check (verdict in ('fake', 'genuine')),

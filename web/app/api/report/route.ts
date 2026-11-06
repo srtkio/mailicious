@@ -1,3 +1,4 @@
+import { isDna } from "@/lib/dna";
 import { clientIp, underLimit } from "@/lib/limit";
 import { addReport, reportTarget } from "@/lib/store";
 
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
   const level = LEVELS.includes(body.level) ? body.level : null;
   const attack = typeof body.attack === "string" ? body.attack.slice(0, 60) : null;
   try {
-    await addReport(target, level, attack);
+    await addReport(target, level, attack, isDna(body.dna) ? body.dna : null);
     return Response.json({ ok: true });
   } catch (e) {
     console.error("report failed:", e);

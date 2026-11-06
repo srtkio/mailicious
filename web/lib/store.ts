@@ -33,15 +33,17 @@ export function reportTarget(sender: string): string | null {
 
 export const isSharedDomain = (host: string) => isOn(host, [...FREE_MAIL, COLLEGE_DOMAIN]);
 
-type Verdicts = { fake: string[]; genuine: string[] };
-let verdicts: Verdicts & { at: number } = { at: 0, fake: [], genuine: [] };
+type Verdicts = { fake: string[]; genuine: string[]; scripts: string[] }; // scripts: the Scam DNA of senders marked fake
+let verdicts: Verdicts & { at: number } = { at: 0, fake: [], genuine: [], scripts: [] };
 
 export async function campusVerdicts(): Promise<Verdicts> {
   if (!config() || Date.now() - verdicts.at < CACHE_MS) return verdicts;
   try {
     const rows: { target: string; verdict: string }[] = await (await rest("verdicts?select=target,verdict")).json();
     const of = (kind: string) => rows.filter((r) => r.verdict === kind).map((r) => r.target);
-    verdicts = { at: Date.now(), fake: of("fake"), genuine: of("genuine") };
+    const reported: { target: string; dna: string }[] = await (await rest("reports?select=target,dna&dna=not.is.null&order=id.desc&limit=2000")).json();
+    const fake = of("fake");
+    verdicts = { at: Date.now(), fake, genuine: of("genuine"), scripts: [...new Set(reported.filter((r) => fake.includes(r.target)).map((r) => r.dna))] };
   } catch (e) {
     console.error("campusVerdicts failed:", e);
   }
@@ -53,8 +55,8 @@ export async function logEvent(level: string, attack: string | null): Promise<vo
   await rest("events", { method: "POST", body: JSON.stringify({ level, attack }) }).catch((e) => console.error("logEvent failed:", e));
 }
 
-export async function addReport(target: string, level: string | null, attack: string | null): Promise<void> {
-  await rest("reports", { method: "POST", body: JSON.stringify({ target, level, attack }) });
+export async function addReport(target: string, level: string | null, attack: string | null, dna: string | null = null): Promise<void> {
+  await rest("reports", { method: "POST", body: JSON.stringify({ target, level, attack, dna }) });
 }
 
 export async function setVerdict(target: string, verdict: "fake" | "genuine"): Promise<void> {
@@ -63,7 +65,7 @@ export async function setVerdict(target: string, verdict: "fake" | "genuine"): P
     headers: { prefer: "resolution=merge-duplicates" },
     body: JSON.stringify({ target, verdict, updated_at: new Date().toISOString() }),
   });
-  verdicts = { at: 0, fake: [], genuine: [] }; // this instance sees the change at once; others within a minute
+  verdicts = { at: 0, fake: [], genuine: [], scripts: [] }; // this instance sees the change at once; others within a minute
 }
 
 const RADAR_CACHE_MS = 30_000;

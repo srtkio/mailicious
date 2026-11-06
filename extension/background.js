@@ -3,7 +3,7 @@ const API = "https://placementshield.vercel.app/api/check";
 
 async function check(payload) {
   const { enabled = true } = await chrome.storage.local.get("enabled");
-  if (!enabled) return null;
+  if (!enabled) return { off: true };
   const res = await fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
   if (!res.ok) return null;
   const result = await res.json();

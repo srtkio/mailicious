@@ -46,6 +46,8 @@
   const bodyOf = (message) => message.querySelector(".a3s") ?? message.querySelector(".ii.gt");
 
   const results = new Map(); // message id -> result, or "pending"
+  const attempts = new Map(); // message id -> failed tries
+  const MAX_TRIES = 3;
   let latest = null;
 
   const el = (tag, cls, text) => {
@@ -181,10 +183,28 @@
     const result = await new Promise((done) =>
       chrome.runtime.sendMessage({ type: "check", payload: { text: `${subject}\n${text}`.slice(0, 20000), sender, linkPairs, attachments, ...(headers ? { headers } : {}) } }, (r) => done(chrome.runtime.lastError ? null : r)),
     );
+    if (result?.off) return results.set(id, null); // the student switched it off: stay silent
+    if (!result) return retry(message, id);
+    attempts.delete(id);
     results.set(id, result);
-    if (!result) return;
     latest = result;
     show(message, id, result);
+  }
+
+  // A failed check must never look like an all-clear, so retry, then say so on the mail.
+  function retry(message, id) {
+    const tries = (attempts.get(id) ?? 0) + 1;
+    attempts.set(id, tries);
+    if (tries < MAX_TRIES) {
+      results.delete(id);
+      setTimeout(schedule, 2000 * tries);
+      return;
+    }
+    results.set(id, null);
+    const { host, root } = shadowHost(id);
+    host.style.setProperty("--c", "#8a5200");
+    root.append(el("span", "pill", "PlacementShield couldn't check this mail. Reopen it to try again, and be careful until then."));
+    (bodyOf(message)?.parentElement ?? message).prepend(host);
   }
 
   function show(message, id, result) {

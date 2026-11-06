@@ -50,6 +50,7 @@
   const attempts = new Map(); // message id -> failed tries
   const MAX_TRIES = 3;
   const CHECK_TIMEOUT_MS = 28000;
+  const FAILED_TEXT = "PlacementShield couldn't check this mail. Refresh Gmail to try again, and be careful until then.";
   let latest = null;
 
   const el = (tag, cls, text) => {
@@ -120,11 +121,15 @@
     return button;
   }
 
-  function linkWarning(url, go) {
+  function linkWarning(url, unchecked, go) {
     const { host, root } = shadowHost("warning");
     const overlay = el("div", "overlay");
     const box = el("div", "box");
-    box.append(el("h2", "", "Wait. This mail looks fake."), el("p", "", "This link came from a mail PlacementShield flagged. It may steal your details."), el("code", "", url));
+    box.append(
+      el("h2", "", unchecked ? "Wait. This mail wasn't checked." : "Wait. This mail looks fake."),
+      el("p", "", unchecked ? "PlacementShield couldn't check this mail, so be sure you trust the sender." : "This link came from a mail PlacementShield flagged. It may steal your details."),
+      el("code", "", url),
+    );
     const actions = el("div", "actions");
     const back = el("button", "main", "Stay safe");
     const open = el("button", "", "Open anyway");
@@ -216,8 +221,8 @@
       setTimeout(schedule, 2000 * tries);
       return;
     }
-    results.set(id, null);
-    showStatus(message, id, "PlacementShield couldn't check this mail. Refresh Gmail to try again, and be careful until then.");
+    results.set(id, { failed: true });
+    showStatus(message, id, FAILED_TEXT);
   }
 
   function clearStatus(message) {
@@ -263,7 +268,9 @@
       if (!bodyOf(message)?.offsetParent) return; // collapsed in the thread
       const id = message.dataset.messageId.replace(/^#/, "");
       const known = results.get(id);
-      if (known && known !== "pending") show(message, id, known); // Gmail re-renders and drops the card
+      if (known?.failed) {
+        if (!message.querySelector('[data-placementshield="status"]')) showStatus(message, id, FAILED_TEXT); // Gmail re-renders and drops it
+      } else if (known && known !== "pending") show(message, id, known);
       else checkMessage(message);
     });
   }
@@ -272,10 +279,11 @@
     "click",
     (event) => {
       const link = event.target.closest?.(".a3s a[href], .ii.gt a[href]");
-      if (!link || resultFor(link)?.level !== "high") return;
+      const result = link && resultFor(link);
+      if (result?.level !== "high" && !result?.failed) return; // an unchecked mail gets the same pause as a fake one
       event.preventDefault();
       event.stopPropagation();
-      linkWarning(link.href, () => window.open(link.href, "_blank", "noopener"));
+      linkWarning(link.href, !!result.failed, () => window.open(link.href, "_blank", "noopener"));
     },
     true,
   );
@@ -292,6 +300,13 @@
     },
     true,
   );
+
+  // Mails skipped while the switch was off get checked once it's back on.
+  chrome.storage.onChanged.addListener((changes) => {
+    if (!changes.enabled?.newValue) return;
+    for (const [id, value] of results) if (value === null) results.delete(id);
+    schedule();
+  });
 
   let timer;
   const schedule = () => {

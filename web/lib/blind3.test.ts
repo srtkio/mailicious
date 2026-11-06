@@ -17,7 +17,6 @@ const KNOWN_MISSES: Record<string, string> = {
   "b-scam-4": "medium TOO_GOOD only: 'bear the visa stamping cost of Rs 38,000, payable to our agent' isn't read as a fee",
   "b-scam-7": "medium WRONG_DOMAIN only: 'reply with one of your Google backup codes' isn't read as a secret",
   "b-scam-11": "medium FREE_MAIL_CLAIM only: Hinglish '₹1,200 bhejna hoga' isn't read as a payment request",
-  "b-real-4": "high ASKS_FEE: 'The scheme charges no registration fee' reads the verb 'charges' as an un-negated fee",
 };
 
 function judge(m: Mail): Level {

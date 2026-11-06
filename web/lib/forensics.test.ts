@@ -56,6 +56,11 @@ describe("auditLetter", () => {
   it("says so when the letter is only a picture", () => {
     expect(status(auditLetter(facts({ producer: "Word" })), "Readable text")).toBe("warn");
   });
+  it("can't be cleared by padding the demand past what's read", () => {
+    const r = auditLetter(facts({ text: `${clean} ${"word ".repeat(50_000)} Pay to hr.desk@ybl today.`, producer: "Microsoft Word", created: new Date(Date.UTC(2026, 2, 12)) }));
+    expect(r.level).toBe("medium");
+    expect(status(r, "Readable text")).toBe("warn");
+  });
   it("fails active content and puts the worst first", () => {
     const r = auditLetter(facts({ text: clean, active: ["a script"] }));
     expect(r.level).toBe("high");

@@ -91,7 +91,7 @@ export type Dashboard = {
   checked: number;
   flagged: number;
   attacks: { name: string; count: number }[];
-  queue: { target: string; count: number; attack: string | null; latest: string }[];
+  queue: { target: string; count: number; attack: string | null; latest: string; script: boolean }[]; // script: marking this fake also blocks its Scam DNA
   verdicts: { target: string; verdict: string }[];
 };
 
@@ -99,7 +99,7 @@ export type Dashboard = {
 export async function dashboard(): Promise<Dashboard> {
   const [events, reports, verdicts] = await Promise.all([
     rest("events?select=level,attack&order=id.desc&limit=2000").then((r) => r.json() as Promise<{ level: string; attack: string | null }[]>),
-    rest("reports?select=target,attack,created_at&order=id.desc&limit=500").then((r) => r.json() as Promise<{ target: string; attack: string | null; created_at: string }[]>),
+    rest("reports?select=target,attack,created_at,dna&order=id.desc&limit=500").then((r) => r.json() as Promise<{ target: string; attack: string | null; created_at: string; dna?: string | null }[]>),
     rest("verdicts?select=target,verdict&order=updated_at.desc").then((r) => r.json() as Promise<{ target: string; verdict: string }[]>),
   ]);
   const count = new Map<string, number>();
@@ -109,8 +109,10 @@ export async function dashboard(): Promise<Dashboard> {
   for (const r of reports) {
     if (decided.has(r.target)) continue;
     const row = queue.get(r.target);
-    if (row) row.count++;
-    else queue.set(r.target, { target: r.target, count: 1, attack: r.attack, latest: r.created_at });
+    if (row) {
+      row.count++;
+      row.script ||= !!r.dna;
+    } else queue.set(r.target, { target: r.target, count: 1, attack: r.attack, latest: r.created_at, script: !!r.dna });
   }
   return {
     checked: events.length,

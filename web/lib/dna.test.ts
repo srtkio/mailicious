@@ -28,6 +28,10 @@ describe("scamDna", () => {
     expect(seen.length).toBeGreaterThan(60);
     for (let i = 0; i < seen.length; i++) for (let j = i + 1; j < seen.length; j++) expect(dnaDistance(seen[i], seen[j])).toBeGreaterThan(SAME_SCRIPT_BITS);
   });
+  it("sees through invisible characters and glued symbols", () => {
+    expect(scamDna(SCAM.replace(/registration/g, "reg\u200Bistra\u200Dtion").replace(/selected/g, "sel\u00ADected"))).toBe(scamDna(SCAM));
+    expect(scamDna(`${SCAM.replace(/ /g, "|")}|hr@fake.example`)).toBe(scamDna(SCAM));
+  });
   it("stays fast on a crafted run of one long word", () => {
     const start = performance.now();
     scamDna("a.".repeat(10_000));

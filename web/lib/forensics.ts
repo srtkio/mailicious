@@ -59,10 +59,11 @@ const UPI = /\b[\w.-]{2,64}@(?:ybl|ibl|axl|upi|paytm|apl|okaxis|okhdfcbank|okici
 const FREE_MAIL = /\b[\w.+-]{1,64}@(?:gmail|yahoo|outlook|hotmail|rediffmail|proton|protonmail)\.[a-z.]+\b/i;
 const SECRETS = /\b(?:otp|aadhaa?r|pan card|bank (?:details|account)|cvv|atm pin|upi pin)\b/i;
 const DAY = 86_400_000;
-const MAX_TEXT = 60_000; // a letter is a page or two, and a crafted PDF mustn't hang the tab
+const MAX_TEXT = 200_000; // a letter is a page or two, and a crafted PDF mustn't hang the tab
 
 export function auditLetter(facts: PdfFacts): LetterReport {
-  const text = facts.text.slice(0, MAX_TEXT).replace(/\s+/g, " ").trim();
+  const full = facts.text.replace(/\s+/g, " ").trim();
+  const text = full.slice(0, MAX_TEXT);
   const upper = text.toUpperCase();
   const findings: Finding[] = [];
   const add = (label: string, status: Finding["status"], detail: string) => findings.push({ label, status, detail });
@@ -71,6 +72,7 @@ export function auditLetter(facts: PdfFacts): LetterReport {
   else add("Hidden actions", "pass", "No scripts, launch actions or embedded files inside the PDF.");
 
   if (!text) add("Readable text", "warn", "It's only a picture of a letter, so nothing in it could be read or tested.");
+  else if (full.length > MAX_TEXT) add("Readable text", "warn", "This letter is unusually long, so only part of it was read. Padding is a way to hide what's further in.");
 
   const made = [facts.producer, facts.creator].filter(Boolean).join(" ");
   const tool = DESIGN_TOOL.exec(made)?.[1];

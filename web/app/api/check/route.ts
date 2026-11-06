@@ -82,7 +82,9 @@ export async function POST(request: Request) {
   // The script itself, so a scammer who changes address is still caught. The college's own warnings about a scam can quote it, so offices are exempt.
   const dna = scamDna(text);
   const scriptMatch = collegeSender || (proven && !!target && campus.genuine.includes(target)) ? null : dnaMatch(dna, campus.scripts);
-  if (scriptMatch) unread.push({ code: "SCAM_DNA", level: "high", text: `This mail's script is a ${scriptMatch}% match for a scam your placement cell already marked fake, sent from a different address.` });
+  // The caller controls the sender and unreadBody, so only the mail's own words can vouch for a script. A match alone can't call clean words fake.
+  const riskyWords = checkRules(text, "", [], [], [], {}).level !== "low";
+  if (scriptMatch) unread.push({ code: "SCAM_DNA", level: riskyWords ? "high" : "medium", text: `This mail's script is a ${scriptMatch}% match for a scam your placement cell already marked fake, sent from a different address.` });
   // A different reply domain only stays a quiet note when the mail doesn't ask you to reply.
   const replyAsk = /\b(reply|respond|write back|get back to|send (us|me)|e-?mail us|mail us|contact us at)\b/i.test(text);
   const headerFlags = (headers?.flags ?? []).map((f) =>
@@ -105,7 +107,7 @@ export async function POST(request: Request) {
     sender,
     dna,
     dnaMatch: scriptMatch,
-    dnaToken: dna && target && result.level !== "low" ? dnaToken(dna, target) : null, // only a mail we flagged can add to the scam list
+    dnaToken: dna && target && riskyWords ? dnaToken(dna, target) : null,
     evidence: { ...result.evidence, company: company?.summary ?? null },
     sources: company?.sources ?? [],
     checks: securityReport(result.flags, [...(headers?.checks ?? []), ...intel.checks], { sender: !!sender, links: allLinks.length > 0, headers: !!headers, identity: proven ? result.evidence.sender : null }),

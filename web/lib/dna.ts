@@ -9,13 +9,15 @@ const MAX_WORDS = 800;
 const BITS = 64;
 const MASK = (1n << 64n) - 1n;
 
-// How close two fingerprints must be to count as one script. Across all 84 long-enough test mails, the nearest unrelated pair is 17 bits apart.
+// How close two fingerprints must be to count as one script. Every pair of unrelated test mails is further apart than this: dna.test.ts enforces it.
 export const SAME_SCRIPT_BITS = 14;
 
 function words(text: string): string[] {
   return text
+    .normalize("NFKC") // full-width and styled letters read as plain ones
+    .replace(/\p{Cf}/gu, "") // zero-width characters hide inside words
     .toLowerCase()
-    .split(/\s+/)
+    .split(/[^\p{L}\p{N}@.:/+_-]+/u) // any other symbol separates words, so one stray @ can't swallow a sentence
     .filter((w) => !w.includes("@") && !/https?:|www\./.test(w)) // links and addresses are what scammers swap first
     .join(" ")
     .replace(/[^\p{L}\s]/gu, " ")

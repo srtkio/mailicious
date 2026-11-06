@@ -60,6 +60,9 @@ async function gemini(prompt: string, schema: object): Promise<Record<string, un
 
 const shortText = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.replace(/\s+/g, " ").trim().slice(0, max) : null);
 
+// Every opened mail can reach Google, so codes and account numbers stay behind. Amounts stay, for the pay check.
+export const redact = (text: string) => text.replace(/(?<![₹\d,]|\brs\.?\s?|\binr\s?)\b\d{6,}\b/gi, "[number]");
+
 export async function extractClaims(text: string, sender: string): Promise<Claims | null> {
   if (!process.env.GEMINI_API_KEY) return null;
   const boundary = crypto.randomUUID(); // unguessable, so the mail can't close the block early
@@ -77,7 +80,7 @@ remote_access: the reader must install or use screen-sharing or remote-control s
 money_mule: the reader must receive money in their own account and pass it on.
 <<<${boundary}
 From: ${sender.slice(0, 320)}
-${text.slice(0, MAX_MAIL)}
+${redact(text.slice(0, MAX_MAIL))}
 ${boundary}>>>`,
       {
         type: "OBJECT",

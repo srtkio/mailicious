@@ -73,7 +73,8 @@
     host.style.setProperty("--c", style.color);
     host.style.setProperty("--t", style.tint);
     if (result.level === "low") {
-      root.append(el("span", "pill", `✓ PlacementShield: ${result.reasons.join(" ")}`), securityReport(result));
+      const prefix = result.mode === "limited" ? "PlacementShield did a basic check, because the AI was busy:" : "✓ PlacementShield:";
+      root.append(el("span", "pill", `${prefix} ${result.reasons.join(" ")}`), securityReport(result));
       return host;
     }
     const box = el("div", "card");

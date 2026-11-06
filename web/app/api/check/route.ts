@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   const seed = claimedCompany(text);
   const lookup = claims && { ...claims, company: claims.company ?? seed ?? null };
   // Every opened mail reaches here, so the web search runs only for job mail, or newsletters would drain its quota.
-  const jobMail = isJobMail(text);
+  const jobMail = isJobMail(text) || !!claims?.role;
   const [company, linkFlags, intel, campus] = await Promise.all([
     lookup && jobMail ? Promise.race([checkCompany(lookup, sender, seed), deadline]) : null,
     checkLinks(text, allLinks, seed ?? claims?.company ?? undefined),

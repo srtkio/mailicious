@@ -25,7 +25,7 @@ export const SHORTENERS = ["bit.ly", "tinyurl.com", "t.co", "goo.gl", "cutt.ly",
 const FORM_HOSTS = ["forms.gle", "docs.google.com", "forms.office.com", "typeform.com", "jotform.com", "form.jotform.com"];
 
 const RANK: Record<Level, number> = { low: 0, medium: 1, high: 2 };
-const JOBBY = /\b(offer|internship|intern|placement|hiring|recruit\w*|job|selected|shortlisted|interview|stipend|salary|ctc|hr)\b/i;
+const JOBBY = /\b(offers?|internships?|interns?|placements?|hiring|recruit\w*|jobs?|selected|shortlisted|interviews?|stipend|salary|ctc|hr|career\w*|vacanc\w*|openings?|opportunit\w*|fresher\w*)\b/i;
 
 const NEXT_STEP: Record<string, string> = {
   ASKS_SECRET: "Do not share the code or password with anyone. Verify with the placement cell before replying.",

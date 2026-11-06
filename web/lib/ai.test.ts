@@ -1,6 +1,6 @@
 // AI and search checks with fetch stubbed, so nothing here uses quota. All companies and mails are fictional.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { checkCompany, extractClaims, signalFlags } from "./ai";
+import { checkCompany, extractClaims, redact, signalFlags } from "./ai";
 
 const gemini = (out: unknown) => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(out) }] } }] }));
 const tavily = (urls: string[]) => new Response(JSON.stringify({ results: urls.map((url, i) => ({ title: `Result ${i}`, url, content: "text" })) }));
@@ -24,6 +24,10 @@ afterEach(() => {
 });
 
 describe("extractClaims", () => {
+  it("keeps codes and account numbers from Google, but not pay", () => {
+    expect(redact("Your OTP is 482913, account 123456789012.")).toBe("Your OTP is [number], account [number].");
+    expect(redact("Stipend Rs 200000 or ₹300000 or INR 400000.")).toBe("Stipend Rs 200000 or ₹300000 or INR 400000.");
+  });
   it("maps meaning signals to our own severe flags", () => {
     expect(signalFlags(["remote_access", "money_mule", "payment_demand"]).map((f) => [f.code, f.level])).toEqual([["REMOTE_ACCESS", "high"], ["MONEY_MULE", "high"], ["ASKS_FEE", "high"]]);
   });

@@ -17,6 +17,12 @@ async function report(payload) {
   return res.ok;
 }
 
+// A report must never outlive the page it describes.
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.status === "loading") chrome.storage.session.remove(`tab:${tabId}`);
+});
+chrome.tabs.onRemoved.addListener((tabId) => chrome.storage.session.remove(`tab:${tabId}`));
+
 const BADGE = { low: ["✓", "#15803d"], medium: ["!", "#a15c00"], high: ["!!", "#c81e1e"] };
 
 // The popup shows this report. It lives in session storage, so it's gone when the browser closes, and holds no mail text.

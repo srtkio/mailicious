@@ -38,6 +38,14 @@ describe("college senders", () => {
     expect(body.mode).toBe("full");
     vi.mocked(extractClaims).mockClear();
   });
+  it("still looks the company up for a personal college account", async () => {
+    vi.mocked(checkCompany).mockClear();
+    vi.mocked(extractClaims).mockResolvedValueOnce({ company: "Acme Corp", role: null, signals: [] });
+    const headers = "Authentication-Results: mx; dmarc=pass header.from=rishihood.edu.in\r\nFrom: Student <manjistha.b@rishihood.edu.in>";
+    await POST(new Request("http://x/api/check", { method: "POST", headers: { "x-forwarded-for": "9.9.9.8" }, body: JSON.stringify({ text: "Acme Corp internship, apply today.", headers }) }));
+    expect(checkCompany).toHaveBeenCalled();
+    vi.mocked(extractClaims).mockClear();
+  });
 });
 
 describe("reply note", () => {

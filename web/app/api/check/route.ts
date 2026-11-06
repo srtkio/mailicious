@@ -1,5 +1,5 @@
 import { checkCompany, extractClaims, MAX_MAIL, signalFlags } from "@/lib/ai";
-import { addressOf, checkRules, claimedCompany, COLLEGE_DOMAIN, deepRules, findLinks, isJobMail, isOn, looseAddress } from "@/lib/engine";
+import { addressOf, checkRules, claimedCompany, deepRules, findLinks, isCollegeOffice, isJobMail, looseAddress } from "@/lib/engine";
 import { analyzeHeaders, parseRawMail } from "@/lib/headers";
 import { threatIntel } from "@/lib/intel";
 import { checkLinks } from "@/lib/links";
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
   const deadline = new Promise<null>((resolve) => setTimeout(() => resolve(null), AI_BUDGET_MS));
   // Only a DMARC-proved From address earns trust; a sender typed into the form proves nothing.
   const proven = !!headers?.authenticated && headers.from === sender.trim().toLowerCase();
-  const collegeSender = proven && isOn(sender.split("@").pop() ?? "", [COLLEGE_DOMAIN]); // nothing to look up: it's your own college
+  const collegeSender = proven && isCollegeOffice(sender); // an office needs no lookup; a personal account pushing an offer still does
   const claims = underLimit(`ai:${clientIp(request)}`, AI_PER_MINUTE) ? await Promise.race([extractClaims(text, sender), deadline]) : null;
   const seed = claimedCompany(text);
   const lookup = claims && { ...claims, company: claims.company ?? seed ?? null };

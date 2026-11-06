@@ -145,6 +145,7 @@ export function findLinks(text: string, links: string[] = []): string[] {
 }
 
 export const isJobMail = (text: string) => JOBBY.test(text);
+export const isCollegeOffice = (address: string) => isOn(address.split("@").pop() ?? "", [COLLEGE_DOMAIN]) && OFFICE_ACCOUNT.test(address.split("@")[0]);
 
 export const claimedCompany = (text: string) => {
   const named = text.replace(TOOL_NAMES, " ");
@@ -269,7 +270,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   const company = claimedCompany(text);
   const onCollege = !!senderHost && isOn(senderHost, [COLLEGE_DOMAIN]);
   const verifiedCollege = !!context.authenticated && onCollege;
-  const office = verifiedCollege && OFFICE_ACCOUNT.test(senderAddr.split("@")[0]);
+  const office = verifiedCollege && isCollegeOffice(senderAddr);
   const trusted = office || (!!context.authenticated && !!context.genuine);
   let senderEvidence: string | null = null;
 

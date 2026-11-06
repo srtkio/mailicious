@@ -50,10 +50,11 @@
   const results = new Map(); // message id -> result, or "pending"
   const attempts = new Map(); // message id -> failed tries
   const MAX_TRIES = 3;
+  const SEVERITY = { low: 0, medium: 1, high: 2 };
   const CHECK_TIMEOUT_MS = 28000;
   const FAILED_TEXT = "MAILicious couldn't check this mail. Refresh Gmail to try again, and be careful until then.";
   let latest = null;
-  let focused = false; // the toolbar badge is showing a mail
+  let badge = ""; // what the toolbar badge currently describes
 
   const el = (tag, cls, text) => {
     const node = document.createElement(tag);
@@ -172,6 +173,7 @@
 
     results.set(id, "pending");
     showStatus(message, id, "MAILicious is checking this mail…");
+    syncToolbar();
     const sender = message.querySelector(".gD[email], td.gF span[email]")?.getAttribute("email") ?? "";
     const anchors = [...body.querySelectorAll("a[href]")].filter((a) => /^https?:/i.test(a.href)).slice(0, 40);
     const linkPairs = anchors.map((a) => ({ text: a.textContent.trim().slice(0, 300), href: a.href.slice(0, 2000) }));
@@ -189,13 +191,15 @@
     });
     if (result?.off) {
       clearStatus(message);
-      return results.set(id, null); // the student switched it off: stay silent
+      results.set(id, null); // the student switched it off: stay silent
+      return syncToolbar();
     }
     if (!result) return retry(message, id);
     attempts.delete(id);
     results.set(id, result);
     latest = result;
     show(message, id, result);
+    syncToolbar();
   }
 
   // A failed check must never look like an all-clear, so retry, then say so on the mail.
@@ -210,6 +214,7 @@
     results.set(id, { failed: true });
     latest = { failed: true }; // keeps the OTP warning on for replies to it
     showStatus(message, id, FAILED_TEXT);
+    syncToolbar();
   }
 
   function clearStatus(message) {
@@ -226,10 +231,25 @@
 
   const toolbarReport = ({ level, attack, reasons, nextStep, checks, mode, sender, evidence, sources }) => ({ level, attack, reasons, nextStep, checks, mode, sender, company: evidence?.company ?? null, sources });
 
+  // The badge and popup describe every open mail in the thread, worst first, and only once all of them have a final verdict.
+  // A check in progress, a failure or the inbox clears them, so an old verdict can never stand in for a new mail.
+  function syncToolbar() {
+    const open = [...document.querySelectorAll("[data-message-id]")].filter((m) => bodyOf(m)?.offsetParent).map((m) => results.get(m.dataset.messageId.replace(/^#/, "")));
+    const finished = open.filter((r) => r?.level);
+    const worst = finished.reduce((a, b) => (SEVERITY[b.level] > SEVERITY[a.level] ? b : a), finished[0]);
+    const complete = open.length > 0 && finished.length === open.length;
+    const next = complete ? `${open.length}:${worst.level}:${worst.sender}:${worst.reasons[0]}` : "";
+    if (next === badge) return;
+    badge = next;
+    try {
+      chrome.runtime.sendMessage(complete ? { type: "focus", result: toolbarReport(worst) } : { type: "clear" }, () => void chrome.runtime.lastError);
+    } catch {
+      badge = ""; // the extension was reloaded under this page
+    }
+  }
+
   function show(message, id, result) {
     clearStatus(message);
-    focused = true;
-    chrome.runtime.sendMessage({ type: "focus", result: toolbarReport(result) }, () => void chrome.runtime.lastError);
     if (message.querySelector(`[data-mailicious="${window.CSS.escape(id)}"]`)) return;
     (bodyOf(message)?.parentElement ?? message).prepend(card(result, id));
   }
@@ -255,10 +275,6 @@
 
   function scan() {
     markInbox();
-    if (focused && !document.querySelector("[data-message-id]")) {
-      focused = false; // back in the inbox, so the badge shouldn't describe the last mail
-      chrome.runtime.sendMessage({ type: "clear" }, () => void chrome.runtime.lastError);
-    }
     document.querySelectorAll("[data-message-id]").forEach((message) => {
       if (!bodyOf(message)?.offsetParent) return; // collapsed in the thread
       const id = message.dataset.messageId.replace(/^#/, "");
@@ -268,6 +284,7 @@
       } else if (known && known !== "pending") show(message, id, known);
       else checkMessage(message);
     });
+    syncToolbar();
   }
 
   document.addEventListener(

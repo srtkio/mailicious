@@ -27,6 +27,11 @@ describe("extractClaims", () => {
   it("keeps codes and account numbers from Google, but not pay", () => {
     expect(redact("Your OTP is 482913, account 123456789012.")).toBe("Your OTP is [number], account [number].");
     expect(redact("Stipend Rs 200000 or ₹300000 or INR 400000.")).toBe("Stipend Rs 200000 or ₹300000 or INR 400000.");
+    expect(redact("Package of ₹1,20,000 a month.")).toBe("Package of ₹1,20,000 a month.");
+    expect(redact("Aadhaar 1234 5678 9012, card 4111-1111-1111-1111, phone 98765 43210.")).toBe("Aadhaar [number], card [number], phone [number].");
+    expect(redact("PAN ABCDE1234F")).toBe("PAN [id]");
+    expect(redact("Your OTP is 4821. Your code: AB12CD.")).toBe("Your OTP is [number]. Your code: [number].");
+    expect(redact("Interview on 12 Nov 2026 at 10:30, room 204.")).toBe("Interview on 12 Nov 2026 at 10:30, room 204.");
   });
   it("maps meaning signals to our own severe flags", () => {
     expect(signalFlags(["remote_access", "money_mule", "payment_demand"]).map((f) => [f.code, f.level])).toEqual([["REMOTE_ACCESS", "high"], ["MONEY_MULE", "high"], ["ASKS_FEE", "high"]]);

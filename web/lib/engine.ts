@@ -192,7 +192,7 @@ export function deepRules({ sender = "", links = [], linkPairs = [], attachments
 }
 
 // What sender proof can settle: these depend on who's writing, so a proven office sender clears them.
-const SOFT_FOR_TRUSTED = ["OUTSIDE_FORM", "LINK_MISMATCH", "WRONG_DOMAIN", "COMPANY_DOMAIN_MISMATCH", "TOO_GOOD", "REALITY_CHECK", "URGENCY", "HACKED_ACCOUNT"];
+const SOFT_FOR_TRUSTED = ["OUTSIDE_FORM", "LINK_MISMATCH", "WRONG_DOMAIN", "COMPANY_DOMAIN_MISMATCH", "TOO_GOOD", "REALITY_CHECK", "URGENCY", "HACKED_ACCOUNT", "BODY_NOT_READ"];
 // authenticated: DMARC proved the From address. genuine: the placement cell vouched for this sender.
 export type SenderContext = { authenticated?: boolean; genuine?: boolean };
 

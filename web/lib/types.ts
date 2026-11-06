@@ -28,6 +28,7 @@ export type CheckRequest = {
   headers?: string; // just the message headers, as the extension sends them
   linkPairs?: LinkPair[];
   attachments?: string[];
+  unreadBody?: boolean; // the extension found no readable text, so the mail is probably images
 };
 
 export type SecurityCheck = {

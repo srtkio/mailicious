@@ -52,6 +52,7 @@ export async function POST(request: Request) {
   const everyLink = [...new Set([...uniquePairs.map((l) => l.href), ...findLinks(parsed?.text ?? text, links)])];
   const allLinks = everyLink.slice(0, MAX_LINKS);
   const unread: Flag[] = [];
+  if (input.unreadBody === true) unread.push({ code: "BODY_NOT_READ", level: "medium", text: "This mail is mostly images, which we can't read, so we only checked the sender, subject and links." });
   if (parsed?.partial) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: "This mail is built in a way that stopped us reading all of it." });
   if (everyLink.length > MAX_LINKS || uniquePairs.length > linkPairs.length) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: `This mail has ${everyLink.length} links, too many to check them all.` });
   if (parsed && parsed.text.length > MAX_TEXT) unread.push({ code: "LINK_NOT_CHECKED", level: "medium", text: "This mail is too long to read in full." });

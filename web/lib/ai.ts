@@ -61,7 +61,11 @@ async function gemini(prompt: string, schema: object): Promise<Record<string, un
 const shortText = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.replace(/\s+/g, " ").trim().slice(0, max) : null);
 
 // Every opened mail can reach Google, so codes and account numbers stay behind. Amounts stay, for the pay check.
-export const redact = (text: string) => text.replace(/(?<![₹\d,]|\brs\.?\s?|\binr\s?)\b\d{6,}\b/gi, "[number]");
+export const redact = (text: string) =>
+  text
+    .replace(/\b[A-Z]{5}\d{4}[A-Z]\b/g, "[id]")
+    .replace(/(?<![₹\d,.]|\brs\.?\s?|\binr\s?)\b\d(?:[ -]?\d){5,}\b/gi, "[number]")
+    .replace(/\b(otp|code|pin|password|passcode)\b(\D{0,20}?)\b[a-z0-9]*\d[a-z0-9]*\b/gi, "$1$2[number]");
 
 export async function extractClaims(text: string, sender: string): Promise<Claims | null> {
   if (!process.env.GEMINI_API_KEY) return null;

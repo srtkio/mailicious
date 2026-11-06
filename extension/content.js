@@ -198,7 +198,7 @@
     const result = await new Promise((done) => {
       setTimeout(() => done(null), CHECK_TIMEOUT_MS);
       try {
-        chrome.runtime.sendMessage({ type: "check", payload: { text: `${subject}\n${text}`.trim().slice(0, 20000) || "(no text)", sender, linkPairs, attachments, ...(headers ? { headers } : {}) } }, (r) => done(chrome.runtime.lastError ? null : r));
+        chrome.runtime.sendMessage({ type: "check", payload: { text: `${subject}\n${text}`.trim().slice(0, 20000) || "(no text)", sender, linkPairs, attachments, unreadBody: !text, ...(headers ? { headers } : {}) } }, (r) => done(chrome.runtime.lastError ? null : r));
       } catch {
         done(null); // the extension was reloaded under this page
       }
@@ -249,7 +249,7 @@
   function resultFor(node) {
     const id = (node.closest("[data-message-id]")?.dataset.messageId ?? "").replace(/^#/, "");
     const r = results.get(id);
-    return r === "pending" ? { failed: true } : r; // a click during the check pauses like an unchecked mail
+    return r === "pending" || r === undefined ? { failed: true } : r; // only a finished check, or the switch being off, skips the pause
   }
 
   function markInbox() {

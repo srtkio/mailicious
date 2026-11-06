@@ -6,7 +6,7 @@ const GROUPS: { label: string; codes: string[]; pass: string; needs: "sender" | 
   { label: "Links", codes: ["HIDDEN_LINK", "HOMOGRAPH_LINK", "LOOKALIKE_LINK", "RAW_IP_LINK", "SHORT_LINK", "SHORT_LINK_TARGET", "LINK_MISMATCH", "LINK_NOT_CHECKED"], pass: "The links go where they should.", needs: "links" },
   { label: "Forms", codes: ["FORM_ASKS_DATA", "FORM_MISMATCH", "OUTSIDE_FORM", "FORM_READ"], pass: "No risky form found.", needs: null },
   { label: "Attachments", codes: ["DANGEROUS_ATTACHMENT"], pass: "No dangerous attachment found.", needs: null },
-  { label: "What it asks for", codes: ["ASKS_SECRET", "ASKS_FEE", "PAYMENT_NOTICE", "ASKS_DOCUMENTS", "ASKS_LOGIN", "REMOTE_ACCESS", "MONEY_MULE", "MOVE_TO_CHAT"], pass: "It doesn't ask for money, codes or ID.", needs: null },
+  { label: "What it asks for", codes: ["ASKS_SECRET", "ASKS_FEE", "PAYMENT_NOTICE", "ASKS_DOCUMENTS", "ASKS_LOGIN", "REMOTE_ACCESS", "MONEY_MULE", "MOVE_TO_CHAT", "BODY_NOT_READ"], pass: "It doesn't ask for money, codes or ID.", needs: null },
   { label: "Does the offer add up", codes: ["TOO_GOOD", "REALITY_CHECK", "URGENCY"], pass: "Nothing about the offer looks off.", needs: null },
 ];
 

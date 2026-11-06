@@ -40,6 +40,7 @@
     button { font: inherit; padding: 8px 14px; border: 1px solid #2a2f8f; background: #fff; color: #2a2f8f; border-radius: 4px; cursor: pointer; }
     button.main { background: #2a2f8f; color: #fff; }
     button.report { margin-top: 8px; padding: 5px 10px; }
+    button:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid #2a2f8f; outline-offset: 2px; }
     .toast { position: fixed; right: 20px; bottom: 20px; z-index: 2147483647; max-width: 340px; background: #b3122a; color: #fff; padding: 12px 14px; border-radius: 6px; }
   `;
   const MARKS = { pass: "✓", warn: "!", fail: "✕", skip: "–" };
@@ -92,7 +93,9 @@
 
   function securityReport(result) {
     const more = el("details");
-    more.append(el("summary", "", "Security report"));
+    const count = (status) => (result.checks ?? []).filter((c) => c.status === status).length;
+    const summary = [`${count("pass")} passed`, count("warn") && `${count("warn")} to check`, count("fail") && `${count("fail")} failed`, count("skip") && `${count("skip")} not checked`].filter(Boolean).join(", ");
+    more.append(el("summary", "", `Security report: ${summary}`));
     (result.checks ?? []).forEach((c) => {
       const row = el("div", "row");
       row.append(el("span", "", MARKS[c.status]), el("span", "", `${c.label}: ${c.detail}`));

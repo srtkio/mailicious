@@ -16,6 +16,12 @@ const MARK: Record<SecurityCheck["status"], { sign: string; color: string; said:
   skip: { sign: "–", color: "text-muted", said: "Not checked" },
 };
 
+// "7 passed, 1 to check": the report at a glance, before anyone opens it.
+function reportSummary(checks: SecurityCheck[]): string {
+  const n = (status: SecurityCheck["status"]) => checks.filter((c) => c.status === status).length;
+  return [`${n("pass")} passed`, n("warn") && `${n("warn")} to check`, n("fail") && `${n("fail")} failed`, n("skip") && `${n("skip")} not checked`].filter(Boolean).join(", ");
+}
+
 const RAW_MAIL = /^(Delivered-To|Received|Return-Path|Authentication-Results|MIME-Version|ARC-Seal|X-[\w-]+):/i;
 
 // Fictional mails for trying the checker. None has a real link, so a demo click fetches nothing.
@@ -121,14 +127,31 @@ export default function Home() {
       </header>
 
       <main className="mx-auto w-full max-w-5xl px-4 sm:px-8">
-        <section className="py-10 sm:py-14">
-          <h1 className="max-w-3xl font-display text-4xl font-bold leading-tight sm:text-5xl">Catch fake placement mails before you reply, pay or click.</h1>
-          <p className="mt-4 max-w-2xl text-lg text-muted">
-            PlacementShield checks who really sent a mail, where its links go and what it wants from you, then tells you what to do in five seconds.
-          </p>
-          <a href="#extension" className="mt-6 inline-block bg-pad px-6 py-3 font-bold text-white hover:bg-ink">
-            Add it to Gmail
-          </a>
+        <section className="grid items-center gap-10 py-10 sm:py-14 lg:grid-cols-[1fr_25rem]">
+          <div>
+            <h1 className="max-w-3xl font-display text-4xl font-bold leading-tight sm:text-5xl">Catch fake placement mails before you reply, pay or click.</h1>
+            <p className="mt-4 max-w-2xl text-lg text-muted">
+              PlacementShield checks who really sent a mail, where its links go and what it wants from you, then tells you what to do in five seconds.
+            </p>
+            <a href="#extension" className="mt-6 inline-block bg-pad px-6 py-3 font-bold text-white hover:bg-ink">
+              Add it to Gmail
+            </a>
+            <p className="mt-3 text-muted">Free. No Google sign-in. We don&apos;t save your mail.</p>
+          </div>
+          <figure aria-label="Example of the warning shown inside Gmail">
+            <div className="border-l-4 border-high bg-[#fbeaec] p-4">
+              <p className="font-bold text-high">
+                Likely fake <span className="ml-2 font-normal text-muted">Advance-fee scam</span>
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>It asks you to pay money. Real companies don&apos;t charge you to get hired.</li>
+                <li>It claims to be Microsoft but was sent from a personal gmail.com address.</li>
+              </ul>
+              <p className="mt-3 font-bold">Do not pay anything. Check with the placement cell.</p>
+              <p className="mt-3 text-muted">Security report: 5 passed, 2 failed</p>
+            </div>
+            <figcaption className="mt-2 text-muted">An example of what appears on a risky mail in Gmail.</figcaption>
+          </figure>
         </section>
 
         <section id="check" className="scroll-mt-4 border-t border-rule py-10">
@@ -269,6 +292,7 @@ function Verdict({ result }: { result: CheckResult }) {
       <p className="mt-5 font-bold">{result.nextStep}</p>
 
       <h3 className="mt-6 border-t border-rule pt-4 font-display text-lg font-bold">Security report</h3>
+      <p className="text-muted">{reportSummary(result.checks)}</p>
       <ul className="mt-2 space-y-2">
         {result.checks.map((c) => (
           <li key={c.label} className="grid grid-cols-[1.25rem_1fr] gap-1">

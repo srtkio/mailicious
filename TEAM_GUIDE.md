@@ -12,7 +12,7 @@ Most teams will build "paste it, AI says HIGH". We win on **evidence**: we check
 
 There are three pieces, all using one engine:
 
-1. **Website:** paste checker, demo inbox, extension download page.
+1. **Website:** paste checker, sample mails to try, extension download page.
 2. **Chrome extension:** stays quiet until a student opens a placement mail or is about to type an OTP or click a link.
 3. **Placement-cell dashboard:** a coordinator marks a sender fake, and every student then sees it as HIGH.
 
@@ -27,7 +27,7 @@ There are three pieces, all using one engine:
 | Domain age, mail server, link reputation (`web/lib/intel.ts`) | Done |
 | Website with security report and extension download | Done, live |
 | Gmail extension (`extension/`) | Works in real Gmail: card, security report and real SPF, DKIM and DMARC results confirmed. Link warning and reply warning only tested on a fake page |
-| Placement-cell dashboard, reporting and campus blocklist (`web/lib/store.ts`) | Built at `/dashboard`, needs the Supabase secret key and `supabase/schema.sql` run once |
+| Placement-cell dashboard, reporting and campus blocklist (`web/lib/store.ts`) | Built at `/dashboard`, needs the Supabase keys, `ADMIN_PASSWORD` and `supabase/schema.sql` run once |
 | Pitch deck | Not started |
 
 ## Run it
@@ -43,8 +43,9 @@ npm run dev
 
 Open http://localhost:3000 and click "Try a fake offer". The checker works without any API keys.
 
-- `npm test` runs the engine tests.
+- `npm test` runs the tests.
 - `npm run lint` and `npx tsc --noEmit` check the code. Run all three before you push.
+- On a fresh clone, run `npx next typegen` once first, or `tsc` fails on `LayoutProps`.
 
 ## API keys
 
@@ -56,7 +57,8 @@ The app runs without keys, using rules and link checks only. Keys turn on the AI
 | `TAVILY_API_KEY` | Company background search | https://app.tavily.com/home |
 | `SAFE_BROWSING_API_KEY` | Optional: Google's blocklist of dangerous links | https://console.cloud.google.com/apis/library/safebrowsing.googleapis.com |
 | `VIRUSTOTAL_API_KEY` | Optional: 70+ security vendors' verdicts | https://www.virustotal.com/gui/my-apikey |
-| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Dashboard data. Found under Project Settings, API. | https://supabase.com/dashboard/projects |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Dashboard data and the campus blocklist. Found under Project Settings, API. | https://supabase.com/dashboard/projects |
+| `ADMIN_PASSWORD` | The one shared password for `/dashboard`. Choose your own. | |
 
 Keys go in `web/.env.local`: run `cp .env.example .env.local` in `web/`, then paste each value straight after its `=`, with no quotes or spaces. Finder hides this file; press Cmd+Shift+. to show it.
 
@@ -64,7 +66,7 @@ Keys go in `web/.env.local`: run `cp .env.example .env.local` in `web/`, then pa
 
 ## Extension
 
-It checks every mail the student opens while its switch is on, and works inside Gmail with no Google sign-in. Only job mail triggers the web search, to protect the search quota. A content script reads the open mail and fetches Gmail's own Show original page for the real headers, so it needs no OAuth and no MCP server.
+It checks every mail the student opens while its switch is on, and works inside Gmail with no Google sign-in. Only job mail triggers the web search, to protect the search quota. A content script reads the open mail and fetches Gmail's own Show original page for the real headers, so it needs no OAuth and no MCP server. It also puts a dot beside risky-looking rows in the inbox, judged on the row alone.
 
 After changing anything in `extension/`, run `npm run pack:extension` in `web/` to rebuild the download, then deploy.
 
@@ -77,7 +79,7 @@ To deploy, run `vercel deploy --prod --yes` in `web/`. Pushes to GitHub also sta
 
 ## How the engine works
 
-`POST /api/check` takes `{ text, sender?, links? }`. The full shape is in `web/lib/types.ts`, and `web/lib/mock-result.ts` is a sample answer you can build against.
+`POST /api/check` takes `{ text, sender?, links? }`, or `{ raw }` for a whole mail. The full shape is in `web/lib/types.ts`, and `web/lib/mock-result.ts` is a sample answer you can build against.
 
 ```
 curl -s localhost:3000/api/check -H 'content-type: application/json' \
@@ -98,17 +100,22 @@ Flags you'll see:
 
 | Flag | Risk | Meaning |
 |---|---|---|
-| `ASKS_SECRET` | High | Asks for an OTP or password |
+| `ASKS_SECRET` | High, or medium | Asks for an OTP or password. Medium only if the AI ran and it isn't job mail |
 | `ASKS_FEE` | High | Asks you to pay |
-| `ASKS_DOCUMENTS` | High | Asks for ID or bank details |
+| `ASKS_DOCUMENTS` | High, or medium | Asks for ID or bank details. Medium only if the AI ran and it isn't job mail |
+| `REMOTE_ACCESS` | High | Asks you to install remote-access software |
+| `MONEY_MULE` | High | Asks you to move money through your account |
 | `BLOCKED_SENDER` | High | The placement cell already marked this sender fake |
 | `LOOKALIKE_DOMAIN` | High | Sender imitates a company domain |
 | `RAW_IP_LINK` | High | Link goes to a bare IP address |
 | `FORM_ASKS_DATA` | High | The linked form asks for sensitive details |
 | `FREE_MAIL_CLAIM` | Medium | Claims a company but sent from Gmail or similar |
 | `WRONG_DOMAIN` | Medium | Sender domain isn't the company's |
-| `HACKED_ACCOUNT` | Medium | Real college account, but the content doesn't fit |
+| `HACKED_ACCOUNT` | High or medium | Real college account, but the content doesn't fit. High if it asks for what a college office never would |
 | `MOVE_TO_CHAT` | Medium | Moves you to WhatsApp or Telegram |
+| `ASKS_LOGIN` | Medium | Pushes you to verify an account |
+| `PAYMENT_NOTICE` | Medium | Mentions a payment, either from a proven college office or when the AI didn't run |
+| `BODY_NOT_READ` | Medium | Mostly images, so only the sender, subject and links were checked |
 | `TOO_GOOD` | Medium | Selected with no interview |
 | `SHORT_LINK`, `SHORT_LINK_TARGET` | Medium | Shortened link, and where it really goes |
 | `LINK_MISMATCH` | Medium | Link isn't on the company's site |
@@ -128,6 +135,7 @@ Flags you'll see:
 | `REPLY_TO_MISMATCH` | Medium | Replies go to a different domain |
 | `NO_MAIL_SERVER` | Medium | Sender's domain can't receive mail |
 | `URGENCY` | Low | Pressure to act fast |
+| `FORM_READ` | Low | We read the form and it asks for nothing sensitive |
 
 ## Pitch notes
 
@@ -153,7 +161,7 @@ Rules alone miss scams with no fee or OTP request. That's the AI's job, so an AI
 
 - The extension uses Gmail's page structure, which Google can change without notice. If a selector breaks, it goes quiet and doesn't warn.
 - Only Google Forms are read. Microsoft Forms, Typeform and Jotform aren't, and forms that need sign-in can't be read.
-- The company list is a small hard-coded seed until Supabase is in. Other companies rely on the live search.
+- The company list is a small hard-coded seed, with no Supabase table yet. Other companies rely on the live search.
 - Companies with a second domain can get a wrong MEDIUM: a real `zohocorp.com` mail is flagged because search found `zoho.com`.
 - "Couldn't confirm" means we found no official site. It does not mean fake.
 - A confirmed company only means it has its own website. A scammer can build a site for a made-up company, so never say "confirmed" means safe.

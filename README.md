@@ -18,6 +18,6 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. It works without keys, using rules and link checks only. Copy `web/.env.example` to `web/.env.local` to turn on the AI and web search. The dashboard also needs `supabase/schema.sql` run once.
+Open http://localhost:3000. It works without keys, using rules and link checks only. Copy `web/.env.example` to `web/.env.local` to turn on the AI and web search. The dashboard also needs `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `ADMIN_PASSWORD` set, and `supabase/schema.sql` run once.
 
 `npm test` runs the tests. After changing `extension/`, run `npm run pack:extension` to rebuild the download.

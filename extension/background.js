@@ -1,5 +1,5 @@
 // Calls the checker for the Gmail page. Only runs when the student's switch is on.
-const API = "https://placementshield.vercel.app/api/check";
+const API = "https://mailicious.vercel.app/api/check";
 
 async function check(payload) {
   const { enabled = true } = await chrome.storage.local.get("enabled");

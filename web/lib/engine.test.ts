@@ -184,6 +184,11 @@ describe("deepRules", () => {
     expect(looseAddress('"<placement@rishihood.edu.in> <evil@x.example>')).toBe("evil@x.example");
     expect(addressOf('"<placement@rishihood.edu.in> <evil@x.example>')).toBe("");
   });
+  it("gives advice that fits the kind of mail", () => {
+    expect(checkRules("Your lecture is at 5 PM today.").nextStep).not.toContain("careers");
+    expect(checkRules("Your interview is at 5 PM today.").nextStep).toContain("careers");
+    expect(checkRules("Update your billing details now, urgently.").nextStep).not.toContain("placement cell");
+  });
   it("names no attack from a low note", () => {
     expect(checkRules("Hello.", "", [], [], [{ code: "REPLY_TO_MISMATCH", level: "low", text: "x" }]).attack).toBeNull();
   });

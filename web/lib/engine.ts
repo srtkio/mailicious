@@ -53,6 +53,8 @@ const NEXT_STEP: Record<string, string> = {
 const DEFAULT_NEXT = "Don't act on this mail yet. Verify it with the placement cell or the company's official careers page.";
 const TRUSTED_NEXT = "This looks genuine, so you can go ahead with what the mail asks.";
 const COLLEGE_NEXT = "This is a real college account. If it asks for anything unusual, confirm with the person directly.";
+const GENERAL_LOW_NEXT = "No common warning signs. As always, never share an OTP or password with anyone.";
+const GENERAL_DEFAULT_NEXT = "Don't act on this mail yet. Check the sender through another channel, like their official website or a call.";
 const LOW_NEXT = "No common warning signs, but only apply through the company's official careers site or the placement portal.";
 
 const SECOND_LEVEL = /^(co|org|net|ac|edu|gov|gen|firm|res)$/;
@@ -336,7 +338,7 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   return {
     level,
     reasons: level === "low" && note ? [note, ...unique.slice(0, 1).map((f) => f.text)] : unique.length ? unique.slice(0, 2).map((f) => f.text) : ["No common warning signs found in this text. That doesn't prove it's real."],
-    nextStep: level === "low" ? (trusted && !unique.some((f) => f.code === "BODY_NOT_READ") ? TRUSTED_NEXT : verifiedCollege ? COLLEGE_NEXT : LOW_NEXT) : (NEXT_STEP[top.code] ?? DEFAULT_NEXT),
+    nextStep: level === "low" ? (trusted && !unique.some((f) => f.code === "BODY_NOT_READ") ? TRUSTED_NEXT : verifiedCollege ? COLLEGE_NEXT : jobby ? LOW_NEXT : GENERAL_LOW_NEXT) : (NEXT_STEP[top.code] ?? (jobby ? DEFAULT_NEXT : GENERAL_DEFAULT_NEXT)),
     intent: intentOf(unique, text, !!formHost, hosts.length > 0),
     flags: unique,
     evidence: {

@@ -3,21 +3,81 @@
 <head>
 <meta charset="utf-8">
 <style>
-  body { width: 280px; margin: 0; padding: 14px; font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #16233f; background: #eaf0e8; }
-  h1 { font-size: 16px; margin: 0 0 10px; }
-  label { display: flex; gap: 8px; align-items: center; font-weight: 700; }
-  p { margin: 10px 0 0; color: #4a5870; }
-  strong { color: #16233f; }
-  a { color: #2a2f8f; }
+  * { box-sizing: border-box; }
+  body { width: 320px; margin: 0; font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #16233f; background: #f7faf5; }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: #0f1a35; color: #fff; }
+  header img { width: 26px; height: 26px; }
+  header h1 { flex: 1; margin: 0; font-size: 15px; font-weight: 800; }
+  .switch { position: relative; width: 42px; height: 24px; }
+  .switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+  .switch span { position: absolute; inset: 0; border-radius: 12px; background: #5b6780; pointer-events: none; transition: background .15s; }
+  .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .switch input:checked + span { background: #1c6b48; }
+  .switch input:checked + span::after { transform: translateX(18px); }
+  .switch input:focus-visible + span { outline: 3px solid #cfe8da; outline-offset: 2px; }
+  .hero { display: flex; align-items: center; gap: 16px; padding: 16px; }
+  .ring { position: relative; flex: none; width: 96px; height: 96px; }
+  .ring svg { width: 96px; height: 96px; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 10; }
+  .ring .track { stroke: #dfe7e0; }
+  .ring .safe { stroke: #1c6b48; stroke-linecap: round; transition: stroke-dashoffset .4s; }
+  .ring b { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; font-size: 24px; font-weight: 800; line-height: 1; }
+  .ring small { display: block; margin-top: 3px; font-size: 11px; font-weight: 500; color: #4a5870; }
+  #status { margin: 0; font-size: 16px; font-weight: 800; }
+  #detail { margin: 3px 0 0; color: #4a5870; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 16px; }
+  .stat { padding: 10px 6px; border-radius: 6px; background: #eaf0e8; text-align: center; }
+  .stat b { display: block; font-size: 20px; font-weight: 800; }
+  .stat span { font-size: 12px; color: #4a5870; }
+  .stat.fake b { color: #b3122a; }
+  .stat.safe b { color: #1c6b48; }
+  .checks { margin: 14px 16px 0; padding: 0; list-style: none; }
+  .checks li { display: flex; gap: 8px; padding: 3px 0; color: #4a5870; }
+  .checks li::before { content: "✓"; font-weight: 800; color: #1c6b48; }
+  .note { margin: 12px 16px 0; padding: 8px 10px; border-left: 3px solid #8a5200; background: #fbf2e3; font-size: 12px; }
+  footer { display: flex; justify-content: space-between; padding: 12px 16px 14px; }
+  a { color: #2a2f8f; font-weight: 600; }
 </style>
 </head>
 <body>
-  <h1>PlacementShield</h1>
-  <label><input type="checkbox" id="enabled"> Check mails I open</label>
-  <p><strong id="checked">0</strong> mails checked, <strong id="caught">0</strong> flagged.</p>
-  <p id="note"></p>
-  <p>While this is on, every mail you open is sent for checking. We don't save it, but its text goes to Google's AI. Turn this off before opening anything private.</p>
-  <p><a href="https://placementshield.vercel.app" target="_blank" rel="noopener">Open the website</a></p>
+  <header>
+    <img src="icons/48.png" alt="">
+    <h1>PlacementShield</h1>
+    <label class="switch" aria-label="Check mails I open"><input type="checkbox" id="enabled"><span></span></label>
+  </header>
+
+  <section class="hero">
+    <div class="ring" role="img" id="ring">
+      <svg viewBox="0 0 96 96" aria-hidden="true">
+        <circle class="track" cx="48" cy="48" r="42"></circle>
+        <circle class="safe" id="safeArc" cx="48" cy="48" r="42"></circle>
+      </svg>
+      <b><span id="share">–</span><small>clear</small></b>
+    </div>
+    <div>
+      <p id="status"></p>
+      <p id="detail"></p>
+    </div>
+  </section>
+
+  <section class="stats" aria-label="Your numbers">
+    <div class="stat"><b id="checked">0</b><span>Checked</span></div>
+    <div class="stat safe"><b id="clear">0</b><span>Clear</span></div>
+    <div class="stat fake"><b id="caught">0</b><span>Flagged</span></div>
+  </section>
+
+  <ul class="checks">
+    <li>Real sender proof (SPF, DKIM, DMARC)</li>
+    <li>Disguised and look-alike links</li>
+    <li>Requests for money, OTPs and ID</li>
+  </ul>
+
+  <p class="note">While this is on, each mail you open goes to Google's AI to be read. We don't save it. Switch off before opening anything private.</p>
+
+  <footer>
+    <a href="https://placementshield.vercel.app" target="_blank" rel="noopener">Website</a>
+    <a href="https://placementshield.vercel.app/#check" target="_blank" rel="noopener">Check a mail</a>
+  </footer>
   <script src="popup.js"></script>
 </body>
 </html>

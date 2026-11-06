@@ -145,6 +145,7 @@ Blind means the mails were written without seeing the fixes. Only blind scores c
 | Rules only, set 3, blind | 70% | 5% |
 | Rules plus AI, set 3, paced | 100% | 0%, not blind: the AI prompt was written after seeing the misses |
 | Rules plus AI, set 4, blind, every kind of mail | 90% | 55%, of which 4 were a test error. This found the money rule firing on bills and tickets, since fixed |
+| Rules plus AI, set 5, blind, every kind of mail | 85% | 25% after setting aside a sender-format bug, since fixed. The false-alarm fixes after this run haven't been re-measured |
 
 Rules alone miss scams with no fee or OTP request. That's the AI's job, so an AI outage lowers detection.
 

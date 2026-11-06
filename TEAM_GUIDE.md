@@ -137,7 +137,15 @@ Flags you'll see:
 
 ## Accuracy
 
-Blind test, offline rules only, on 40 fictional mails written without seeing the fixes: 80% of scams caught, 15% false alarms. That's the honest number so far. The engine was then fixed against those mails, so a later score on the same mails doesn't count. Quote only a score from mails the engine hasn't been fixed against.
+Blind means the mails were written without seeing the fixes. Only blind scores count.
+
+| Test | Scams caught | False alarms |
+|---|---|---|
+| Rules only, set 2, blind | 80% | 15% |
+| Rules only, set 3, blind | 70% | 5% |
+| Rules plus AI, set 3, paced | 100% | 0%, not blind: the AI prompt was written after seeing the misses |
+
+Rules alone miss scams with no fee or OTP request. That's the AI's job, so an AI outage lowers detection.
 
 ## Limits to know
 
@@ -147,6 +155,7 @@ Blind test, offline rules only, on 40 fictional mails written without seeing the
 - Companies with a second domain can get a wrong MEDIUM: a real `zohocorp.com` mail is flagged because search found `zoho.com`.
 - "Couldn't confirm" means we found no official site. It does not mean fake.
 - A confirmed company only means it has its own website. A scammer can build a site for a made-up company, so never say "confirmed" means safe.
+- All students share one free Gemini key. Sending 40 mails with no gap made most AI calls fail, so busy periods drop to a labelled basic check. A paid key fixes this.
 - A check takes about 2 to 10 seconds. The AI gets 15 seconds at most, then the student gets the rules and link result.
 - After 20 AI checks a minute from one IP address, results drop to rules and link checks only. The count is per server instance, so it slows abuse but won't fully stop it.
 - Rules are deliberately cautious: they'd rather flag a real mail than miss a scam.

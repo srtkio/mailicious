@@ -68,7 +68,7 @@ It checks every mail the student opens while its switch is on, and works inside 
 
 After changing anything in `extension/`, run `npm run pack:extension` in `web/` to rebuild the download, then deploy.
 
-Deploying isn't automatic: run `vercel deploy --prod --yes` in `web/`.
+To deploy, run `vercel deploy --prod --yes` in `web/`. Pushes to GitHub also start a Vercel build, which fails because the project's root directory isn't set to `web`. Those failures don't affect the live site.
 
 ## Rules
 

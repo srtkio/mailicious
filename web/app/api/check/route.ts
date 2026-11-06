@@ -66,11 +66,12 @@ export async function POST(request: Request) {
   // Only a DMARC-proved From address earns trust; a sender typed into the form proves nothing.
   const proven = !!headers?.authenticated && headers.from === sender.trim().toLowerCase();
   const collegeSender = proven && isCollegeOffice(sender); // an office needs no lookup; a personal account pushing an offer still does
+  const clean = canonical(text); // rules read what a person sees; link checks keep the raw text, where look-alike characters matter
   const claims = underLimit(`ai:${clientIp(request)}`, AI_PER_MINUTE) ? await Promise.race([extractClaims(text, sender), deadline]) : null;
-  const seed = claimedCompany(text);
+  const seed = claimedCompany(clean);
   const lookup = claims && { ...claims, company: claims.company ?? seed ?? null };
   // Every opened mail reaches here, so the web search runs only for job mail, or newsletters would drain its quota.
-  const jobMail = isJobMail(text) || !!claims?.role;
+  const jobMail = isJobMail(clean) || !!claims?.role;
   const [company, linkFlags, intel, campus] = await Promise.all([
     lookup && jobMail && !collegeSender ? Promise.race([checkCompany(lookup, sender, seed), deadline]) : null,
     checkLinks(text, allLinks, seed ?? claims?.company ?? undefined),
@@ -83,10 +84,10 @@ export async function POST(request: Request) {
   const dna = scamDna(text);
   const scriptMatch = collegeSender || (proven && !!target && campus.genuine.includes(target)) ? null : dnaMatch(dna, campus.scripts);
   // The caller controls the sender and unreadBody, so only the mail's own words can vouch for a script. A match alone can't call clean words fake.
-  const riskyWords = checkRules(canonical(text), "", [], [], [], {}).level !== "low" || /\p{L}\p{Cf}\p{L}/u.test(text); // invisible characters inside a word are hiding something
+  const riskyWords = checkRules(clean, "", [], [], [], {}).level !== "low" || /\p{L}\p{Cf}\p{L}/u.test(text); // invisible characters inside a word are hiding something
   if (scriptMatch) unread.push({ code: "SCAM_DNA", level: riskyWords ? "high" : "medium", text: `This mail's script matches a scam your placement cell already marked fake, sent from a different address (${scriptMatch}% match).` });
   // A different reply domain only stays a quiet note when the mail doesn't ask you to reply.
-  const replyAsk = /\b(reply|respond|write back|get back to|send (us|me)|e-?mail us|mail us|contact us at)\b/i.test(text);
+  const replyAsk = /\b(reply|respond|write back|get back to|send (us|me)|e-?mail us|mail us|contact us at)\b/i.test(clean);
   const headerFlags = (headers?.flags ?? []).map((f) =>
     f.code === "REPLY_TO_MISMATCH" && f.level === "low" && replyAsk ? { ...f, level: "medium" as const, text: f.text.replace(/, but this is a no-reply address, so it matters little\./, ", and this mail asks you to reply.") } : f,
   );
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
     ...intel.flags,
     ...deepRules({ sender, links: allLinks, linkPairs, attachments: files }),
   ];
-  const result = checkRules(text, sender, allLinks, campus.fake.filter((b) => !b.includes("@")), extra, { authenticated: proven, genuine: !!target && campus.genuine.includes(target), aiChecked: !!claims && text.length <= MAX_MAIL });
+  const result = checkRules(clean, sender, allLinks, campus.fake.filter((b) => !b.includes("@")), extra, { authenticated: proven, genuine: !!target && campus.genuine.includes(target), aiChecked: !!claims && text.length <= MAX_MAIL });
   await logEvent(result.level, result.attack);
 
   return Response.json({

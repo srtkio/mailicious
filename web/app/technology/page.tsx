@@ -172,7 +172,7 @@ const SECTIONS: Section[] = [
       "Each mail becomes a 64-bit SimHash. Zero-width characters are removed and styled letters flattened, then links and addresses are dropped, because those are what scammers change first.",
       "Words every placement mail shares, like internship and offer, are left out, so the fingerprint describes the script rather than the topic. Single words count three times as much as word pairs, because a rewrite keeps its words longer than their order.",
       "Two mails count as one script when at most 14 of the 64 bits differ. Every pair of unrelated test mails is further apart than that, and a test enforces it. In our test, the closest pair was 18 bits apart and the reworded versions 11 to 12.",
-      "A report stores only the fingerprint, which can't be turned back into the mail. Once the placement cell marks that sender fake, its two most-reported fingerprints join the campus list.",
+      "A report stores only the fingerprint, which can't be turned back into the mail. Once the placement cell marks that sender fake, its two most-reported fingerprints from before that verdict join the campus list.",
       "The server signs each fingerprint for a day, and only for a mail whose own words look risky, so a report can't simply claim a real mail's fingerprint.",
       "A match gives SCAM_DNA at High when the mail's own words are risky too, and Medium when they aren't, so a match alone can never call a clean mail fake. Proven college offices and proven senders the cell marked genuine are exempt.",
     ],

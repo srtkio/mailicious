@@ -36,21 +36,23 @@ export const isSharedDomain = (host: string) => isOn(host, [...FREE_MAIL, COLLEG
 
 type Verdicts = { fake: string[]; genuine: string[]; scripts: string[] }; // scripts: the Scam DNA of senders marked fake
 let verdicts: Verdicts & { at: number } = { at: 0, fake: [], genuine: [], scripts: [] };
+let decidedAt = new Map<string, string | undefined>(); // fake sender -> when it was marked
 
 export async function campusVerdicts(): Promise<Verdicts> {
   if (!config() || Date.now() - verdicts.at < CACHE_MS) return verdicts;
   try {
-    const rows: { target: string; verdict: string }[] = await (await rest("verdicts?select=target,verdict")).json();
+    const rows: { target: string; verdict: string; updated_at?: string }[] = await (await rest("verdicts?select=target,verdict,updated_at")).json();
     const of = (kind: string) => rows.filter((r) => r.verdict === kind).map((r) => r.target);
     verdicts = { ...verdicts, at: Date.now(), fake: of("fake"), genuine: of("genuine") };
+    decidedAt = new Map(rows.filter((r) => r.verdict === "fake").map((r) => [r.target, r.updated_at]));
   } catch (e) {
     console.error("campusVerdicts failed:", e);
     return verdicts;
   }
   // Fetched apart, so a failure here can't cost the blocklist above.
   try {
-    const reported: { target: string; dna: unknown }[] = await (await rest("reports?select=target,dna&dna=not.is.null&order=id.desc&limit=2000")).json();
-    verdicts.scripts = topScripts(reported, verdicts.fake);
+    const reported: { target: string; dna: unknown; created_at?: string }[] = await (await rest("reports?select=target,dna,created_at&dna=not.is.null&order=id.desc&limit=2000")).json();
+    verdicts.scripts = topScripts(reported, decidedAt);
   } catch (e) {
     console.error("campus scripts failed:", e);
   }
@@ -59,11 +61,13 @@ export async function campusVerdicts(): Promise<Verdicts> {
 
 const SCRIPTS_PER_SENDER = 2; // a scammer reuses a script, so one verdict can never bless a flood of fingerprints
 
-// The most-reported fingerprints of each fake sender.
-export function topScripts(reported: { target: string; dna: unknown }[], fake: string[]): string[] {
+// The most-reported fingerprints of each fake sender. Only reports made before the verdict count, or a scammer could flood new ones to push their real script off the list.
+export function topScripts(reported: { target: string; dna: unknown; created_at?: string }[], fake: Map<string, string | undefined>): string[] {
   const tally = new Map<string, Map<string, number>>();
-  for (const { target, dna } of reported) {
-    if (!isDna(dna) || !fake.includes(target)) continue;
+  for (const { target, dna, created_at } of reported) {
+    if (!isDna(dna) || !fake.has(target)) continue;
+    const decided = fake.get(target);
+    if (decided && created_at && Date.parse(created_at) > Date.parse(decided)) continue;
     const counts = tally.get(target) ?? new Map<string, number>();
     tally.set(target, counts.set(dna, (counts.get(dna) ?? 0) + 1));
   }

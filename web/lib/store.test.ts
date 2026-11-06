@@ -31,7 +31,12 @@ describe("topScripts", () => {
   const print = (n: number) => String(n).repeat(16);
   it("keeps only a fake sender's most-reported fingerprints", () => {
     const reports = [1, 1, 1, 2, 2, 3, 4].map((n) => ({ target: "bad.example", dna: print(n) }));
-    expect(topScripts([...reports, { target: "ok.example", dna: print(5) }], ["bad.example"])).toEqual([print(1), print(2)]);
+    expect(topScripts([...reports, { target: "ok.example", dna: print(5) }], new Map([["bad.example", undefined]]))).toEqual([print(1), print(2)]);
+  });
+  it("can't be flooded after the verdict", () => {
+    const real = { target: "bad.example", dna: print(1), created_at: "2026-11-01T10:00:00Z" };
+    const flood = [2, 2, 2, 3, 3, 3].map((n) => ({ target: "bad.example", dna: print(n), created_at: "2026-11-03T10:00:00Z" }));
+    expect(topScripts([real, ...flood], new Map([["bad.example", "2026-11-02T10:00:00Z"]]))).toEqual([print(1)]);
   });
 });
 

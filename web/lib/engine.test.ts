@@ -137,11 +137,11 @@ describe("deepRules", () => {
     const level = (t: string) => checkRules(t).level;
     expect(level("We sent a code to your phone. Please forward that code to us.")).toBe("high");
     expect(level("Kit costs ₹500, returned with your first stipend. Kindly transfer it today.")).toBe("high");
-    expect(level("Fee waived if you pay Rs 500 today.")).toBe("high");
+    expect(level("Internship fee waived if you pay Rs 500 today.")).toBe("high");
     expect(level("For the assignment, share the code on GitHub.")).toBe("low");
     expect(level("We sent an SMS with the venue. Enter your PIN code in the portal.")).toBe("low");
-    expect(level("Fee waived if you pay the ₹500 deposit.")).toBe("high");
-    expect(level("Pay a deposit of ₹1500, late charges are waived.")).toBe("high");
+    expect(level("Internship fee waived if you pay the ₹500 deposit.")).toBe("high");
+    expect(level("Job kit: pay a deposit of ₹1500, late charges are waived.")).toBe("high");
     expect(level("Your salary is Rs 50,000. The kit costs ₹500, kindly pay today.")).toBe("high");
     expect(level("The kit costs ₹500 against your stipend, kindly transfer it.")).toBe("high");
     expect(level("We sent a PIN code to your mobile, reply with it.")).toBe("high");
@@ -149,25 +149,33 @@ describe("deepRules", () => {
     expect(level("Please share your mobile number and resume.")).toBe("low");
     expect(level("Enter the code sent to your phone on the portal.")).toBe("low");
     expect(level("If anyone asks you for a fee, tell the placement cell.")).toBe("low");
-    expect(level("If anyone asks you for a fee, pay the deposit of Rs 500 to us.")).toBe("high");
+    expect(level("For the job, if anyone asks you for a fee, pay the deposit of Rs 500 to us.")).toBe("high");
     expect(level("Stipend is Rs 25,000 per month, paid on the 5th.")).toBe("low");
     expect(level("We will pay you Rs 30,000 and the travel allowance of Rs 2,000 after joining.")).toBe("low");
     expect(level("The fee is included in your semester fees. You do not need to pay anyone.")).toBe("low");
   });
   it("holds up against the review's bypasses", () => {
     const level = (t: string) => checkRules(t).level;
-    expect(level("Kit costs Rs899, kindly transfer it.")).toBe("high");
-    expect(level("Kit costs INR1999, pay today.")).toBe("high");
-    expect(level("The amount to be paid is ₹899 today.")).toBe("high");
+    expect(level("Job kit costs Rs899, kindly transfer it.")).toBe("high");
+    expect(level("Internship kit costs INR1999, pay today.")).toBe("high");
+    expect(level("For your internship the amount to be paid is ₹899 today.")).toBe("high");
     expect(level("We sent a code to your phone. Please provide that code.")).toBe("high");
-    expect(level("The fee of Rs 500 to pay now is waived after you transfer it.")).toBe("high");
-    expect(level("If anyone asks you for a fee, pay it.")).toBe("high");
+    expect(level("The joining fee of Rs 500 to pay now is waived after you transfer it.")).toBe("high");
+    expect(level("If anyone asks you for a job fee, pay it.")).toBe("high");
     expect(level("If anyone asks you for a fee, report it to the cell.")).toBe("low");
     expect(level("The scheme charges no registration fee.")).toBe("low");
   });
   it("still sees a brand behind a tool name", () => {
     expect(checkRules("Google Meet intern offer: interview soon.", "hr@acme.example").flags.map((f) => f.code)).toContain("WRONG_DOMAIN");
     expect(checkRules("Microsoft Teams hiring now, interview next week.", "hr@acme.example").flags.map((f) => f.code)).toContain("WRONG_DOMAIN");
+  });
+  it("leaves money in ordinary mail to the AI, and honest no-fee promises alone", () => {
+    const level = (t: string) => checkRules(t).level;
+    expect(level("Your electricity bill of Rs 842 is due. Pay by 15 Nov to avoid a late fee.")).toBe("low");
+    expect(level("Your ticket is confirmed. Fare Rs 755 paid, including convenience fee.")).toBe("low");
+    expect(level("Bro, I forgot my wallet, can you send me Rs 500?")).toBe("low");
+    expect(level("We are pleased to offer you the job. Meridian does not charge any fee at any stage of recruitment.")).toBe("low");
+    expect(level("Our recruiters don't charge candidates any fee, but pay the deposit of Rs 500 for your job kit.")).toBe("high");
   });
   it("doesn't read a tool as a claim to be its maker", () => {
     expect(checkRules("Your interview is on Google Meet.", "hr@acme.example").level).toBe("low");
@@ -179,7 +187,7 @@ describe("deepRules", () => {
     expect(deepRules({ attachments: ["offer.zip"] })[0].level).toBe("medium");
   });
   it("names the attack on the result", () => {
-    expect(checkRules("Pay the registration fee of Rs 500.").attack).toBe("Advance-fee scam");
+    expect(checkRules("Internship: pay the registration fee of Rs 500.").attack).toBe("Advance-fee scam");
     expect(checkRules("Hello there.").attack).toBeNull();
   });
 });

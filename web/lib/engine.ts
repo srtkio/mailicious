@@ -90,6 +90,9 @@ const INCOME_AFTER = /^\s*(\/-)?\s*(per month|\/\s*month|monthly|a month|lpa|sti
 const SETTLED_FEE = /\b(fees?|charges)\b(?:(?!\b(?:pay|transfer|deposit)\b|₹|\brs\b|\binr\b)[^.!?\n]){0,40}?\b(is|are|has been|have been|will be)\s+(waived|included in (your|the) (semester|tuition|college) fees?)/gi;
 // Only with an instruction to report it, so "if anyone asks for a fee, pay the deposit" stays a demand.
 const FEE_WARNING = /\bif\s+(any\s+\w+|anyone|someone|a\s+\w+)\s+(asks?|demands?|requests?)\s+(you\s+)?(for\s+)?(a\s+|any\s+)?(fees?|money|payment|deposit)\b[^.!?\n]{0,50}?\b(report|tell|inform|ignore|contact)\b/gi;
+const NO_FEE_PROMISE = /\b(does not|do not|doesn'?t|don'?t|will not|won'?t|never)\s+(charge|ask for|collect|take|require|demand)\b[^.!?\n]{0,40}?\b(fees?|money|payments?|charges?)\b/gi;
+// Bills, refunds and tickets all mention money, so the word-matching fee rule only applies to job mail. The AI judges the rest.
+const JOB_CONTEXT = /\b(internships?|interns?|placements?|hiring|recruit\w*|jobs?|shortlisted|interviews?|stipend|salary|ctc|joining|join|offer letter|selected|slot|seat|candidates?|onboarding|programs?|training)\b/i;
 const CREDENTIALS = /\b(verify|confirm|validate|update)\s+(your\s+)?(account|mailbox|email|login|credentials)\b|\bmailbox\b[^.!?\n]{0,30}\bfull\b/i;
 // Naming a tool isn't claiming to be the company that makes it.
 const TOOL_NAMES = /\b(on|via|using|through|over|join|in|fill|this|the|a)\s+(google\s+(meet|forms?|drive|docs?|sheets?|classroom|calendar)|microsoft\s+(teams|office|word|excel|forms?|outlook))\b(?!\s+(intern\w*|team|hiring|offer|job|role|program\w*|recruit\w*))/gi;
@@ -207,8 +210,8 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
   if (asks(text, SECRET, shareVerb) || (CODE_SENT.test(text) && asks(text, THE_CODE, PASS_BACK)))
     add("ASKS_SECRET", "high", "It asks you to share an OTP or password. No real recruiter ever needs this.");
   // Matches money *you* pay (fee/deposit, "pay ₹500"), not salary text like "pay of ₹20,000".
-  const feeText = text.replace(SETTLED_FEE, " ").replace(FEE_WARNING, " ");
-  if (asks(feeText, /\b(fee|fees|deposit|charges(?!\s+(no|zero|nothing)\b))\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i) || asksForMoney(feeText))
+  const feeText = text.replace(SETTLED_FEE, " ").replace(FEE_WARNING, " ").replace(NO_FEE_PROMISE, " ");
+  if (JOB_CONTEXT.test(text) && (asks(feeText, /\b(fee|fees|deposit|charges(?!\s+(no|zero|nothing)\b))\b|\b(pay|transfer|deposit)\s+(rs\.?|₹|inr|\d)/i) || asksForMoney(feeText)))
     add("ASKS_FEE", "high", "It asks you to pay money. Real companies don't charge you to get hired.");
   if (asks(text, ID_OR_BANK, shareVerb))
     add("ASKS_DOCUMENTS", "high", "It asks for ID or bank details over mail before any formal process.");

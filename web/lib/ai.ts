@@ -64,8 +64,10 @@ const shortText = (v: unknown, max: number) => (typeof v === "string" && v.trim(
 export const redact = (text: string) =>
   text
     .replace(/\b[A-Z]{5}\d{4}[A-Z]\b/gi, "[id]")
-    // Just the value after any linking words. Hiding more would let a mail hide its real ask from the AI.
-    .replace(/\b(password|passcode|pwd)\b[\s:=-]*(?:(?:is|for|the|your|portal|account|login|set|reset|to|has|been|now)\b[\s:=-]*){0,6}\S+/gi, "$1 [hidden]")
+    // Just the value, found by its delimiter or linking words. Hiding more would let a mail hide its real ask from the AI.
+    // shortcut: best effort, and a multi-word password can slip through. The popup's warning that mail goes to Google is the real control.
+    .replace(/\b(password|passcode|pwd)\b[^\n]{0,30}?(?:\b(?:is|was)\b|[:=|])\s*\S+/gi, "$1 [hidden]")
+    .replace(/\b(password|passcode|pwd)\b[\s:=-]*(?:(?:for|the|your|portal|account|login|set|reset|to|has|been|now)\b[\s:=-]*){0,6}(?!\[hidden\])\S+/gi, "$1 [hidden]")
     .replace(/\b\d{4,8}\b(?=\s+is\s+(your|the)\s+(otp|code|pin|verification))/gi, "[number]")
     .replace(/(?<![₹\d]|\d[.,]|\brs\.?\s?|\binr\s?)\b\d(?:[ -]?\d){5,}\b/gi, "[number]")
     .replace(/\b(otp|code|pin|cvv)\b(\D{0,20}?)(?<!₹|\brs\.?\s?|\binr\s?)\b[a-z0-9]*\d[a-z0-9]*\b/gi, "$1$2[number]");

@@ -34,7 +34,7 @@ describe("extractClaims", () => {
     expect(redact("Interview on 12 Nov 2026 at 10:30, room 204.")).toBe("Interview on 12 Nov 2026 at 10:30, room 204.");
     expect(redact("A/c No.123456789012 Mob.9876543210")).toBe("A/c No.[number] Mob.[number]");
     expect(redact("pan abcde1234f, 4821 is your OTP, CVV 123")).toBe("pan [id], [number] is your OTP, CVV [number]");
-    for (const secret of ["password is Abc123", "passcode is 4821", "password for the portal: Abc123", "pwd = Xy!9", "Password:\nAbc123", "password: Welcome.2024!"]) expect(redact(secret)).toMatch(/^(password|passcode|pwd) \[hidden\]$/i);
+    for (const secret of ["password is Abc123", "passcode is 4821", "password for the portal: Abc123", "pwd = Xy!9", "Password:\nAbc123", "password: Welcome.2024!", "password for your ERP is Abc123", "password was Abc123", "Password (temporary): Abc123", "Password | Abc123"]) expect(redact(secret)).toMatch(/^(password|passcode|pwd) \[hidden\]$/i);
     expect(redact("Your password expired, so pay Rs 500 to the agent today.")).toContain("pay Rs 500 to the agent today");
     expect(redact("Code of conduct fee ₹500")).toBe("Code of conduct fee ₹500");
   });

@@ -1,6 +1,6 @@
 // Fixture checks for the rules engine. All messages and addresses are fictional.
 import { describe, expect, it } from "vitest";
-import { addressOf, checkRules, deepRules, looseAddress } from "./engine";
+import { addressOf, checkRules, deepRules, looseAddress, checkReadings } from "./engine";
 
 const cases: { name: string; text: string; sender?: string; blocked?: string[]; level: string; code?: string }[] = [
   { name: "asks for OTP", text: "Congratulations on your selection. Please share the OTP sent to your phone to confirm.", level: "high", code: "ASKS_SECRET" },
@@ -234,5 +234,19 @@ describe("deepRules", () => {
   it("names the attack on the result", () => {
     expect(checkRules("Internship: pay the registration fee of Rs 500.").attack).toBe("Advance-fee scam");
     expect(checkRules("Hello there.").attack).toBeNull();
+  });
+});
+
+describe("checkReadings", () => {
+  const read = (text: string) => checkReadings(text, "", [], [], [], {}).level;
+  it("sees a word split by invisible characters", () => {
+    expect(read("Please send us the O\u200BT\u200BP you received.")).toBe("high");
+  });
+  it("sees a word whose spaces were swapped for invisible characters", () => {
+    expect(read("Please\u200Bsend\u200Bus\u200Bthe\u200BOTP\u200Byou\u200Breceived.")).toBe("high");
+  });
+  it("reads ordinary text the same as checkRules", () => {
+    const text = "Your interview is on Monday at 10am.";
+    expect(read(text)).toBe(checkRules(text, "", [], [], [], {}).level);
   });
 });

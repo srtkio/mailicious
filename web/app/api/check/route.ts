@@ -1,7 +1,7 @@
 import { checkCompany, extractClaims, MAX_MAIL, signalFlags } from "@/lib/ai";
 import { canonical, dnaMatch, scamDna } from "@/lib/dna";
 import { dnaToken } from "@/lib/dna-token";
-import { addressOf, checkRules, claimedCompany, deepRules, findLinks, isCollegeOffice, isJobMail, looseAddress } from "@/lib/engine";
+import { addressOf, checkReadings, claimedCompany, deepRules, findLinks, isCollegeOffice, isJobMail, looseAddress } from "@/lib/engine";
 import { analyzeHeaders, parseRawMail } from "@/lib/headers";
 import { threatIntel } from "@/lib/intel";
 import { checkLinks } from "@/lib/links";
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   // Only a DMARC-proved From address earns trust; a sender typed into the form proves nothing.
   const proven = !!headers?.authenticated && headers.from === sender.trim().toLowerCase();
   const collegeSender = proven && isCollegeOffice(sender); // an office needs no lookup; a personal account pushing an offer still does
-  const clean = canonical(text); // rules read what a person sees; link checks keep the raw text, where look-alike characters matter
+  const clean = canonical(text); // what a person sees; link checks keep the raw text, where look-alike characters matter
   const claims = underLimit(`ai:${clientIp(request)}`, AI_PER_MINUTE) ? await Promise.race([extractClaims(text, sender), deadline]) : null;
   const seed = claimedCompany(clean);
   const lookup = claims && { ...claims, company: claims.company ?? seed ?? null };
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   const dna = scamDna(text);
   const scriptMatch = collegeSender || (proven && !!target && campus.genuine.includes(target)) ? null : dnaMatch(dna, campus.scripts);
   // The caller controls the sender and unreadBody, so only the mail's own words can vouch for a script. A match alone can't call clean words fake.
-  const riskyWords = checkRules(clean, "", [], [], [], {}).level !== "low" || /\p{L}\p{Cf}\p{L}/u.test(text); // invisible characters inside a word are hiding something
+  const riskyWords = checkReadings(text, "", [], [], [], {}).level !== "low" || /\p{L}\p{Cf}\p{L}/u.test(text); // invisible characters inside a word are hiding something
   if (scriptMatch) unread.push({ code: "SCAM_DNA", level: riskyWords ? "high" : "medium", text: `This mail's script matches a scam your placement cell already marked fake, sent from a different address (${scriptMatch}% match).` });
   // A different reply domain only stays a quiet note when the mail doesn't ask you to reply.
   const replyAsk = /\b(reply|respond|write back|get back to|send (us|me)|e-?mail us|mail us|contact us at)\b/i.test(clean);
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     ...intel.flags,
     ...deepRules({ sender, links: allLinks, linkPairs, attachments: files }),
   ];
-  const result = checkRules(clean, sender, allLinks, campus.fake.filter((b) => !b.includes("@")), extra, { authenticated: proven, genuine: !!target && campus.genuine.includes(target), aiChecked: !!claims && text.length <= MAX_MAIL });
+  const result = checkReadings(text, sender, allLinks, campus.fake.filter((b) => !b.includes("@")), extra, { authenticated: proven, genuine: !!target && campus.genuine.includes(target), aiChecked: !!claims && text.length <= MAX_MAIL });
   await logEvent(result.level, result.attack);
 
   return Response.json({

@@ -29,14 +29,9 @@ describe("reportTarget", () => {
 
 describe("topScripts", () => {
   const print = (n: number) => String(n).repeat(16);
-  it("keeps only a fake sender's most-reported fingerprints", () => {
+  it("keeps only each sender's most-reported fingerprints", () => {
     const reports = [1, 1, 1, 2, 2, 3, 4].map((n) => ({ target: "bad.example", dna: print(n) }));
-    expect(topScripts([...reports, { target: "ok.example", dna: print(5) }], new Map([["bad.example", undefined]]))).toEqual([print(1), print(2)]);
-  });
-  it("can't be flooded after the verdict", () => {
-    const real = { target: "bad.example", dna: print(1), created_at: "2026-11-01T10:00:00Z" };
-    const flood = [2, 2, 2, 3, 3, 3].map((n) => ({ target: "bad.example", dna: print(n), created_at: "2026-11-03T10:00:00Z" }));
-    expect(topScripts([real, ...flood], new Map([["bad.example", "2026-11-02T10:00:00Z"]]))).toEqual([print(1)]);
+    expect(topScripts([...reports, { target: "other.example", dna: print(5) }, { target: "bad.example", dna: "not-a-print" }])).toEqual([print(1), print(2), print(5)]);
   });
 });
 
@@ -62,17 +57,21 @@ describe("store", () => {
     await setVerdict("new.example", "fake");
     expect((await campusVerdicts()).fake).toEqual(["new.example"]);
   });
-  it("keeps a sender's verdicts when the script lookup fails, and only lists scripts of fake senders", async () => {
+  it("keeps a sender's verdicts when the script lookup fails, and only asks for reports from before the verdict", async () => {
     const fail = { on: false };
+    const asked: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {
       if (url.includes("reports?")) {
+        asked.push(decodeURIComponent(url));
         if (fail.on) throw new Error("down");
-        return json([{ target: "bad.example", dna: "00ff00ff00ff00ff" }, { target: "ok.example", dna: "11ff00ff00ff00ff" }, { target: "bad.example", dna: "not-a-print" }]);
+        return json([{ target: "bad.example", dna: "00ff00ff00ff00ff" }]);
       }
-      return json([{ target: "bad.example", verdict: "fake" }]);
+      return json([{ target: "bad.example", verdict: "fake", updated_at: "2026-11-02T10:00:00+00:00" }, { target: "ok.example", verdict: "genuine", updated_at: "2026-11-02T10:00:00+00:00" }]);
     }));
     await setVerdict("bad.example", "fake");
     expect(await campusVerdicts()).toMatchObject({ fake: ["bad.example"], scripts: ["00ff00ff00ff00ff"] });
+    expect(asked[0]).toContain('and(target.eq."bad.example",created_at.lte."2026-11-02T10:00:00+00:00")');
+    expect(asked[0]).not.toContain("ok.example");
     fail.on = true;
     await setVerdict("bad.example", "fake");
     expect(await campusVerdicts()).toMatchObject({ fake: ["bad.example"], scripts: ["00ff00ff00ff00ff"] });

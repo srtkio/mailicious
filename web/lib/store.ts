@@ -36,23 +36,24 @@ export const isSharedDomain = (host: string) => isOn(host, [...FREE_MAIL, COLLEG
 
 type Verdicts = { fake: string[]; genuine: string[]; scripts: string[] }; // scripts: the Scam DNA of senders marked fake
 let verdicts: Verdicts & { at: number } = { at: 0, fake: [], genuine: [], scripts: [] };
-let decidedAt = new Map<string, string | undefined>(); // fake sender -> when it was marked
 
 export async function campusVerdicts(): Promise<Verdicts> {
   if (!config() || Date.now() - verdicts.at < CACHE_MS) return verdicts;
+  let fake: { target: string; updated_at: string }[];
   try {
-    const rows: { target: string; verdict: string; updated_at?: string }[] = await (await rest("verdicts?select=target,verdict,updated_at")).json();
-    const of = (kind: string) => rows.filter((r) => r.verdict === kind).map((r) => r.target);
-    verdicts = { ...verdicts, at: Date.now(), fake: of("fake"), genuine: of("genuine") };
-    decidedAt = new Map(rows.filter((r) => r.verdict === "fake").map((r) => [r.target, r.updated_at]));
+    const rows: { target: string; verdict: string; updated_at: string }[] = await (await rest("verdicts?select=target,verdict,updated_at&order=updated_at.desc")).json();
+    const of = (kind: string) => rows.filter((r) => r.verdict === kind);
+    fake = of("fake");
+    verdicts = { ...verdicts, at: Date.now(), fake: fake.map((r) => r.target), genuine: of("genuine").map((r) => r.target) };
   } catch (e) {
     console.error("campusVerdicts failed:", e);
     return verdicts;
   }
-  // Fetched apart, so a failure here can't cost the blocklist above.
+  // Fetched apart, so a failure here can't cost the blocklist above. The cutoff is in the query, so reports made after a verdict can't add to the list or push a real script out of the window.
   try {
-    const reported: { target: string; dna: unknown; created_at?: string }[] = await (await rest("reports?select=target,dna,created_at&dna=not.is.null&order=id.desc&limit=2000")).json();
-    verdicts.scripts = topScripts(reported, decidedAt);
+    const before = fake.slice(0, SCRIPT_SENDERS).map((r) => `and(target.eq."${r.target}",created_at.lte."${r.updated_at}")`);
+    const reported: { target: string; dna: unknown }[] = before.length ? await (await rest(`reports?select=target,dna&dna=not.is.null&or=(${encodeURIComponent(before.join(","))})&order=id.asc&limit=2000`)).json() : [];
+    verdicts.scripts = topScripts(reported);
   } catch (e) {
     console.error("campus scripts failed:", e);
   }
@@ -60,19 +61,17 @@ export async function campusVerdicts(): Promise<Verdicts> {
 }
 
 const SCRIPTS_PER_SENDER = 2; // a scammer reuses a script, so one verdict can never bless a flood of fingerprints
+const SCRIPT_SENDERS = 100; // shortcut: keeps the query short, so only the latest 100 fake senders' scripts apply. Store scripts on the verdict if a campus outgrows that.
 
-// The most-reported fingerprints of each fake sender. Only reports made before the verdict count, or a scammer could flood new ones to push their real script off the list.
-export function topScripts(reported: { target: string; dna: unknown; created_at?: string }[], fake: Map<string, string | undefined>): string[] {
+// The most-reported fingerprints of each sender.
+export function topScripts(reported: { target: string; dna: unknown }[]): string[] {
   const tally = new Map<string, Map<string, number>>();
-  for (const { target, dna, created_at } of reported) {
-    if (!isDna(dna) || !fake.has(target)) continue;
-    const decided = fake.get(target);
-    if (decided && created_at && Date.parse(created_at) > Date.parse(decided)) continue;
+  for (const { target, dna } of reported) {
+    if (!isDna(dna)) continue;
     const counts = tally.get(target) ?? new Map<string, number>();
     tally.set(target, counts.set(dna, (counts.get(dna) ?? 0) + 1));
   }
-  const top = [...tally.values()].flatMap((counts) => [...counts].sort((a, b) => b[1] - a[1]).slice(0, SCRIPTS_PER_SENDER).map(([dna]) => dna));
-  return [...new Set(top)];
+  return [...new Set([...tally.values()].flatMap((counts) => [...counts].sort((a, b) => b[1] - a[1]).slice(0, SCRIPTS_PER_SENDER).map(([dna]) => dna)))];
 }
 
 export async function logEvent(level: string, attack: string | null): Promise<void> {

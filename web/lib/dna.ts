@@ -16,10 +16,10 @@ const MASK = (1n << 64n) - 1n;
 export const SAME_SCRIPT_BITS = 14;
 
 // What the mail says once invisible tricks are gone. The rules read this too, so both see the same words.
-export const canonical = (text: string) =>
+export const canonical = (text: string, gap = "") =>
   text
     .normalize("NFKC") // full-width and styled letters read as plain ones
-    .replace(/\p{Cf}/gu, ""); // zero-width characters hide inside words
+    .replace(/\p{Cf}/gu, gap); // zero-width characters hide inside words, or stand in for the spaces between them
 
 function words(text: string): string[] {
   return canonical(text)

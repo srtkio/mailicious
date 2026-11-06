@@ -1,5 +1,6 @@
 // Rules engine: pure, no network, no dependencies, so the extension can reuse it as-is.
 // These flags are hard floors: AI/search steps may add risk, never remove it.
+import { canonical } from "./dna";
 import type { CheckResult, Flag, Intent, Level, LinkPair } from "./types";
 
 export const COLLEGE_DOMAIN = "rishihood.edu.in";
@@ -353,6 +354,15 @@ export function checkRules(text: string, sender = "", links: string[] = [], bloc
     checks: [],
     mode: "limited",
   };
+}
+
+// Invisible characters can split a word or replace the spaces around one, so both readings are checked and the worse one stands.
+export function checkReadings(text: string, ...rest: Parameters<typeof checkRules> extends [string, ...infer R] ? R : never) {
+  const [joined, spaced] = [canonical(text), canonical(text, " ")];
+  const first = checkRules(joined, ...rest);
+  if (joined === spaced) return first;
+  const second = checkRules(spaced, ...rest);
+  return RANK[second.level] > RANK[first.level] ? second : first;
 }
 
 const ATTACKS: [string, string][] = [

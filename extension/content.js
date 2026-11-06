@@ -183,7 +183,8 @@
     if (!id || !body || results.has(id)) return;
     const text = body.innerText.trim();
     const subject = document.querySelector("h2.hP, .ha h2")?.textContent ?? "";
-    if (!text) return results.set(id, null);
+    // Image-only mails have no body text, but their subject and links still get checked.
+    if (!text && !subject && !body.querySelector("a[href]")) return results.set(id, null);
 
     results.set(id, "pending");
     showStatus(message, id, "PlacementShield is checking this mail…");
@@ -197,7 +198,7 @@
     const result = await new Promise((done) => {
       setTimeout(() => done(null), CHECK_TIMEOUT_MS);
       try {
-        chrome.runtime.sendMessage({ type: "check", payload: { text: `${subject}\n${text}`.slice(0, 20000), sender, linkPairs, attachments, ...(headers ? { headers } : {}) } }, (r) => done(chrome.runtime.lastError ? null : r));
+        chrome.runtime.sendMessage({ type: "check", payload: { text: `${subject}\n${text}`.trim().slice(0, 20000) || "(no text)", sender, linkPairs, attachments, ...(headers ? { headers } : {}) } }, (r) => done(chrome.runtime.lastError ? null : r));
       } catch {
         done(null); // the extension was reloaded under this page
       }
@@ -223,6 +224,7 @@
       return;
     }
     results.set(id, { failed: true });
+    latest = { failed: true }; // keeps the OTP warning on for replies to it
     showStatus(message, id, FAILED_TEXT);
   }
 
@@ -247,7 +249,7 @@
   function resultFor(node) {
     const id = (node.closest("[data-message-id]")?.dataset.messageId ?? "").replace(/^#/, "");
     const r = results.get(id);
-    return r && r !== "pending" ? r : null;
+    return r === "pending" ? { failed: true } : r; // a click during the check pauses like an unchecked mail
   }
 
   function markInbox() {

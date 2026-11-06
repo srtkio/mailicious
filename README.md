@@ -23,6 +23,9 @@ MAILicious catches fake placement mails and other scams inside Gmail, before a s
 - **AI and company check:** Gemini spots scams the rules miss, and Tavily search finds the company's real website.
 - **Threat intel:** domain age, mail server and DMARC policy lookups, plus optional Safe Browsing and VirusTotal checks.
 - **Placement-cell dashboard:** students report senders, and marking one fake warns every student.
+- **Toolbar report:** Gmail keeps a short line or banner, and the full plain-English report opens from the extension icon, with a verdict badge on it.
+- **Scam Drill:** an interactive game on the website that trains students to spot fakes, using fictional mails.
+- **Live Campus Radar:** real totals of checks and attack types, with no sender or mail content.
 
 ## Architecture
 

@@ -118,6 +118,39 @@ const SECTIONS: Section[] = [
     limit: "It relies on Gmail's page structure, which Google can change without notice. If a selector breaks, it goes quiet and doesn't warn. The link warning and reply warning have only been tested on a fake page. The inbox dot is judged on the row alone.",
   },
   {
+    id: "popup",
+    title: "Toolbar report and badge",
+    does: "Keeps Gmail uncluttered by leaving one short line or banner on the mail, and puts the full, plain-English report in the extension's popup, with a verdict badge on the toolbar icon.",
+    how: [
+      "When a verdict arrives, the content script sends the background worker a slim report: level, reasons, next step and checks. It never includes the mail's text.",
+      "The worker keeps it in chrome.storage.session, keyed by tab, so it stays in memory and disappears when the browser closes.",
+      "chrome.action badges are set per tab: a tick, ! or !! in green, amber or red. Going back to the inbox clears the badge.",
+      "The popup reads that tab's report, leads with what was found, and folds passed checks away, each with a line on why it matters. It renders with textContent only, because reports can quote scammers.",
+    ],
+    limit: "The popup can't open itself, so a student has to click the icon. Risky mail therefore keeps its in-page banner, to warn at the moment it matters.",
+  },
+  {
+    id: "drill",
+    title: "Scam Drill",
+    does: "Trains the student's own eye with five fictional mails: guess real or fake, then see the exact tell.",
+    how: [
+      "It's a client-side React state machine with fixed fictional content, so nothing is sent anywhere and no answers are stored.",
+      "Each mail carries its own explanation, so the lesson is what to look for, not only the score.",
+    ],
+    limit: "Five mails is a taster, not a course, and they're fixed, so repeat plays teach less.",
+  },
+  {
+    id: "radar",
+    title: "Live Campus Radar",
+    does: "Shows real, aggregated totals of what MAILicious is seeing: mails checked, flagged, senders blocked and attack types.",
+    how: [
+      "Each check logs only its level and attack type in Supabase, with no sender and no mail text.",
+      "GET /api/radar sums the latest 2,000 events, caches the answer for 30 seconds so page views can't hammer the database, and calls connection() so Next never freezes it at build time.",
+      "The table has row-level security with no public policies, so only the server's secret key can read it. Browsers only ever see the totals.",
+    ],
+    limit: "Numbers include our own testing, so they show activity, not a measured campus scam rate. Totals cover the latest 2,000 events only.",
+  },
+  {
     id: "campus",
     title: "Campus reporting and blocklist",
     does: "One student's report reaches the placement cell, and one coordinator's decision protects every student.",
@@ -170,7 +203,7 @@ export default function TechnologyPage() {
           <h2 id="contents" className="font-display text-xl font-bold">
             Contents
           </h2>
-          <ol className="mt-3 list-decimal space-y-1 pl-5">
+          <ol className="mt-3 list-decimal space-y-1 pl-7">
             {SECTIONS.map((s) => (
               <li key={s.id}>
                 <a href={`#${s.id}`} className="underline hover:text-pad">
